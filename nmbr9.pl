@@ -74,13 +74,15 @@ possibleMoves(display(Tiles), Tile, [Move]) :-
     X in Xmin..Xmax,
     Y in Ymin..Ymax,
     Z in Zmin..Zmax,
-    when((ground(X),ground(Y),ground(Z)), translate(Tile, X, Y, Z, Xmin, Xmax, Ymin, Ymax, Zmin, Zmax, Move)),
+    Bounds = (Xmin, Xmax, Ymin, Ymax, Zmin, Zmax),
+    when((ground(X),ground(Y),ground(Z)), translate(Tile, X, Y, Z, Bounds, Move)),
     label([X, Y, Z]).
 
-translate(Tile, X, Y, Z, Xmin, Xmax, Ymin, Ymax, Zmin, Zmax, NewPos) :-
-    maplist(\P^translatePoint(P, X, Y, Z, Xmin, Xmax, Ymin, Ymax, Zmin, Zmax), Tile, NewPos).
+translate(Tile, X, Y, Z, Bounds, NewPos) :-
+    maplist(\P^translatePoint(P, X, Y, Z, Bounds), Tile, NewPos).
 
-translatePoint((T, Px, Py, Pz), X, Y, Z, Xmin, Xmax, Ymin, Ymax, Zmin, Zmax, (T, Px2, Py2, Pz2)) :-
+translatePoint((T, Px, Py, Pz), X, Y, Z, Bounds, (T, Px2, Py2, Pz2)) :-
+    (Xmin, Xmax, Ymin, Ymax, Zmin, Zmax) = Bounds,
     Px2 #= Px + X,
     Py2 #= Py + Y,
     Pz2 #= Pz + Z,
