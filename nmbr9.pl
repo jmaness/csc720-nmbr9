@@ -2,27 +2,27 @@
 :- use_module(library(lambda)).
 :- use_module(library(when)).
 
-zero([(0,0), (1,0), (2,0), (0,1), (2,1), (0,2), (2, 2), (0,3), (1,3), (2,3)]).
-one([(1,0),(1,1),(1,2),(0,3),(1,3)]).
-two([(0,0), (1,0), (2,0), (0,1), (1,1), (1,2), (2,2), (1,3), (2,3)]).
-three([(0,0), (1,0), (2,0), (1,1), (2,1), (2,2), (0.3), (1,3), (2,3)]).
-four([(1,0), (2,0), (0,1), (1,1), (2,1), (1,2), (1,3), (2,3)]).
-five([(0,0), (1,0), (2,0), (2,1), (0,2), (1,2), (2,2), (0,3), (1,3), (2,3)]).
-six([(0,0), (1,0), (2,0), (0,1), (1,1), (2,1), (0,2), (0,3), (1,3)]).
-seven([(0,0), (0,1), (1,1), (1,2), (0,3), (1,3), (2,3)]).
-eight([(0,0), (1,0), (0,1), (1,1), (1,2), (2,2), (1,3), (2,3)]).
-nine([(0,0), (1,0), (0,1), (1,1), (0,2), (1,2), (2,2), (0,3), (1,3), (2,3)]).
+zero([[0,0], [1,0], [2,0], [0,1], [2,1], [0,2], [2, 2], [0,3], [1,3], [2,3]]).
+one([[1,0],[1,1],[1,2],[0,3],[1,3]]).
+two([[0,0], [1,0], [2,0], [0,1], [1,1], [1,2], [2,2], [1,3], [2,3]]).
+three([[0,0], [1,0], [2,0], [1,1], [2,1], [2,2], [0.3], [1,3], [2,3]]).
+four([[1,0], [2,0], [0,1], [1,1], [2,1], [1,2], [1,3], [2,3]]).
+five([[0,0], [1,0], [2,0], [2,1], [0,2], [1,2], [2,2], [0,3], [1,3], [2,3]]).
+six([[0,0], [1,0], [2,0], [0,1], [1,1], [2,1], [0,2], [0,3], [1,3]]).
+seven([[0,0], [0,1], [1,1], [1,2], [0,3], [1,3], [2,3]]).
+eight([[0,0], [1,0], [0,1], [1,1], [1,2], [2,2], [1,3], [2,3]]).
+nine([[0,0], [1,0], [0,1], [1,1], [0,2], [1,2], [2,2], [0,3], [1,3], [2,3]]).
 
 tile(Id, Points, T) :- maplist(\P^tilePoint(P, Id), Points, T).
-tilePoint((Px, Py), Id, (Id, Px, Py, 0)).
+tilePoint([Px, Py], Id, [Id, Px, Py, 0]).
+tileCoord([_, Px, Py, Pz], [Px, Py, Pz]).
 
-tilePointListList(Tile, TilePointList) :- maplist(\P^tilePointList(P),Tile,TilePointList).
-tilePointList((Id, Px, Py, Pz), [Id, Px, Py, Pz]).
+tileCoords(Tile, Coords) :- maplist(\P^tileCoord(P), Tile, Coords).
 
-getT((T, _, _, _), T).
-getX((_, X, _, _), X).
-getY((_, _, Y, _), Y).
-getZ((_, _, _, Z), Z).
+getT([T, _, _, _], T).
+getX([_, X, _, _], X).
+getY([_, _, Y, _], Y).
+getZ([_, _, _, Z], Z).
 
 getTs(Tile, Ts) :- maplist(getT, Tile, Ts).
 getXs(Tile, Xs) :- maplist(getX, Tile, Xs).
@@ -78,7 +78,6 @@ possibleMoves(display(Tiles), Tile, Move) :-
     translate(Tile, X, Y, Z, Bounds, Move),
     isNonintersecting(Tiles, Move),
     isAdjacent(Tiles, Move),
-    %when((ground(Move)), maplist(\T^disjoint(Move, T), Tiles)),
     label([X, Y, Z]).
 
 nextMoveBounds(Tiles, Bounds) :-
@@ -93,16 +92,15 @@ nextMoveBounds(Tiles, Bounds) :-
     NextMoveYmin #= Ymin - 4,
     NextMoveYmax #= Ymax + 4,
     NextMoveZmin #= Zmin,
-    NextMoveZmax #= Zmax + 1,
+    %NextMoveZmax #= Zmax + 1,
+    NextMoveZmax #= Zmax,
     Bounds = (NextMoveXmin, NextMoveXmax, NextMoveYmin, NextMoveYmax, NextMoveZmin, NextMoveZmax).
-
-
-disjoint(Move, Tile) :- tilePointListList(Tile, TilePointList), #\ tuples_in(Move, TilePointList).
 
 translate(Tile, X, Y, Z, Bounds, NewPos) :-
     maplist(\P^translatePoint(P, X, Y, Z, Bounds), Tile, NewPos).
 
-translatePoint((T, Px, Py, Pz), X, Y, Z, Bounds, [T, Px2, Py2, Pz2]) :-
+translatePoint(Tile, X, Y, Z, Bounds, [T, Px2, Py2, Pz2]) :-
+    [T, Px, Py, Pz] = Tile,
     (Xmin, Xmax, Ymin, Ymax, Zmin, Zmax) = Bounds,
     Px2 #= Px + X,
     Py2 #= Py + Y,
@@ -111,5 +109,20 @@ translatePoint((T, Px, Py, Pz), X, Y, Z, Bounds, [T, Px2, Py2, Pz2]) :-
     Py2 in Ymin..Ymax,
     Pz2 in Zmin..Zmax.
 
-isNonintersecting(Tiles, Move).
+isNonintersecting(Tiles, Move) :-
+    foldl(\A^T^unionCoords(A, T), Tiles, [], AllCoords),
+    tileCoords(Move, MoveCoords),
+
+    % TODO fix this
+    maplist(\C^notSameCoord(C), MoveCoords).
+
+notSameCoord([X1, Y1, Z1], [X2, Y2, Z2]) :-
+    X1 #\= X2,
+    Y1 #\= Y2,
+    Z1 #\= Z2.
+
+unionCoords(Acc, Tile, Res) :-
+    tileCoords(Tile, Coords),
+    union(Acc, Coords, Res).
+
 isAdjacent(Tiles, Move).
