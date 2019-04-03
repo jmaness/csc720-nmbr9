@@ -16,6 +16,8 @@ nine([(0,0), (1,0), (0,1), (1,1), (0,2), (1,2), (2,2), (0,3), (1,3), (2,3)]).
 tile(Id, Points, T) :- maplist(\P^tilePoint(P, Id), Points, T).
 tilePoint((Px, Py), Id, (Id, Px, Py, 0)).
 
+tilePointListList(Tile, TilePointList) :- maplist(\P^tilePointList(P),Tile,TilePointList).
+tilePointList((Id, Px, Py, Pz), [Id, Px, Py, Pz]).
 
 getT((T, _, _, _), T).
 getX((_, X, _, _), X).
@@ -64,24 +66,43 @@ maxZ(Tiles, Max) :-
     max_list(Zss, Max).
 
 
-possibleMoves(display(Tiles), Tile, [Move]) :-
+possibleMoves(display(Tiles), Tile, Move) :-
+    nextMoveBounds(Tiles, Bounds),
+    (NextMoveXmin, NextMoveXmax, NextMoveYmin, NextMoveYmax, NextMoveZmin, NextMoveZmax) = Bounds,
+    X in NextMoveXmin..NextMoveXmax,
+    Y in NextMoveYmin..NextMoveYmax,
+    Z in NextMoveZmin..NextMoveZmax,
+    indomain(X),
+    indomain(Y),
+    indomain(Z),
+    translate(Tile, X, Y, Z, Bounds, Move),
+    isNonintersecting(Tiles, Move),
+    isAdjacent(Tiles, Move),
+    %when((ground(Move)), maplist(\T^disjoint(Move, T), Tiles)),
+    label([X, Y, Z]).
+
+nextMoveBounds(Tiles, Bounds) :-
     minX(Tiles, Xmin),
     maxX(Tiles, Xmax),
     minY(Tiles, Ymin),
     maxY(Tiles, Ymax),
     minZ(Tiles, Zmin),
     maxZ(Tiles, Zmax),
-    X in Xmin..Xmax,
-    Y in Ymin..Ymax,
-    Z in Zmin..Zmax,
-    Bounds = (Xmin, Xmax, Ymin, Ymax, Zmin, Zmax),
-    when((ground(X),ground(Y),ground(Z)), translate(Tile, X, Y, Z, Bounds, Move)),
-    label([X, Y, Z]).
+    NextMoveXmin #= Xmin - 4,
+    NextMoveXmax #= Xmax + 4,
+    NextMoveYmin #= Ymin - 4,
+    NextMoveYmax #= Ymax + 4,
+    NextMoveZmin #= Zmin,
+    NextMoveZmax #= Zmax + 1,
+    Bounds = (NextMoveXmin, NextMoveXmax, NextMoveYmin, NextMoveYmax, NextMoveZmin, NextMoveZmax).
+
+
+disjoint(Move, Tile) :- tilePointListList(Tile, TilePointList), #\ tuples_in(Move, TilePointList).
 
 translate(Tile, X, Y, Z, Bounds, NewPos) :-
     maplist(\P^translatePoint(P, X, Y, Z, Bounds), Tile, NewPos).
 
-translatePoint((T, Px, Py, Pz), X, Y, Z, Bounds, (T, Px2, Py2, Pz2)) :-
+translatePoint((T, Px, Py, Pz), X, Y, Z, Bounds, [T, Px2, Py2, Pz2]) :-
     (Xmin, Xmax, Ymin, Ymax, Zmin, Zmax) = Bounds,
     Px2 #= Px + X,
     Py2 #= Py + Y,
@@ -90,3 +111,5 @@ translatePoint((T, Px, Py, Pz), X, Y, Z, Bounds, (T, Px2, Py2, Pz2)) :-
     Py2 in Ymin..Ymax,
     Pz2 in Zmin..Zmax.
 
+isNonintersecting(Tiles, Move).
+isAdjacent(Tiles, Move).
