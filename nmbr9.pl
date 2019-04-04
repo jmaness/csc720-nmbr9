@@ -72,6 +72,7 @@ possibleMoves(display(Tiles), Tile, Move) :-
     X in NextMoveXmin..NextMoveXmax,
     Y in NextMoveYmin..NextMoveYmax,
     Z in NextMoveZmin..NextMoveZmax,
+    indomain(X), indomain(Y), indomain(Z), % this effectively makes this a generate-and-test execution :(
     translate(Tile, X, Y, Z, Bounds, Move),
     isNonintersecting(Tiles, Move),
     isAdjacent(Tiles, Move),
@@ -98,17 +99,17 @@ translate(Tile, X, Y, Z, Bounds, NewPos) :-
 
 translatePoint([T, Px, Py, Pz], X, Y, Z, Bounds, [T, Px2, Py2, Pz2]) :-
     (Xmin, Xmax, Ymin, Ymax, Zmin, Zmax) = Bounds,
-    Px2 #= Px + X,
-    Py2 #= Py + Y,
-    Pz2 #= Pz + Z,
     Px2 in Xmin..Xmax,
     Py2 in Ymin..Ymax,
-    Pz2 in Zmin..Zmax.
+    Pz2 in Zmin..Zmax,
+    Px2 #= Px + X,
+    Py2 #= Py + Y,
+    Pz2 #= Pz + Z.
 
 isNonintersecting(Tiles, Tile) :-
     foldl(\T^A^unionTileCoords(A, T), Tiles, [], AllCoords),
     maplist(\P^pointCoords(P),Tile,Coords),
-    #\ tuples_in(Coords, AllCoords).
+    forall(member(Coord, Coords), #\ tuples_in([Coord], AllCoords)).
 
 unionTileCoords(Acc, Tile, Res) :-
     tileCoords(Tile, Coords),
