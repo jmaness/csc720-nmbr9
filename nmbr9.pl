@@ -2,6 +2,12 @@
 :- use_module(library(lambda)).
 :- use_module(library(when)).
 
+tile(Id, Points, T) :- maplist(\P^tilePoint(P, Id), Points, T).
+tilePoint([Px, Py], Id, [Id, Px, Py, 0]).
+
+pointCoords([_, X, Y, Z], [X, Y, Z]).
+tileCoords(Tile, Coords) :- maplist(\P^pointCoords(P),Tile,Coords).
+
 zero([[0,0], [1,0], [2,0], [0,1], [2,1], [0,2], [2, 2], [0,3], [1,3], [2,3]]).
 one([[1,0],[1,1],[1,2],[0,3],[1,3]]).
 two([[0,0], [1,0], [2,0], [0,1], [1,1], [1,2], [2,2], [1,3], [2,3]]).
@@ -12,12 +18,6 @@ six([[0,0], [1,0], [2,0], [0,1], [1,1], [2,1], [0,2], [0,3], [1,3]]).
 seven([[0,0], [0,1], [1,1], [1,2], [0,3], [1,3], [2,3]]).
 eight([[0,0], [1,0], [0,1], [1,1], [1,2], [2,2], [1,3], [2,3]]).
 nine([[0,0], [1,0], [0,1], [1,1], [0,2], [1,2], [2,2], [0,3], [1,3], [2,3]]).
-
-tile(Id, Points, T) :- maplist(\P^tilePoint(P, Id), Points, T).
-tilePoint([Px, Py], Id, [Id, Px, Py, 0]).
-tileCoord([_, Px, Py, Pz], [Px, Py, Pz]).
-
-tileCoords(Tile, Coords) :- maplist(\P^tileCoord(P), Tile, Coords).
 
 getT([T, _, _, _], T).
 getX([_, X, _, _], X).
@@ -72,9 +72,6 @@ possibleMoves(display(Tiles), Tile, Move) :-
     X in NextMoveXmin..NextMoveXmax,
     Y in NextMoveYmin..NextMoveYmax,
     Z in NextMoveZmin..NextMoveZmax,
-    indomain(X),
-    indomain(Y),
-    indomain(Z),
     translate(Tile, X, Y, Z, Bounds, Move),
     isNonintersecting(Tiles, Move),
     isAdjacent(Tiles, Move),
@@ -99,8 +96,7 @@ nextMoveBounds(Tiles, Bounds) :-
 translate(Tile, X, Y, Z, Bounds, NewPos) :-
     maplist(\P^translatePoint(P, X, Y, Z, Bounds), Tile, NewPos).
 
-translatePoint(Tile, X, Y, Z, Bounds, [T, Px2, Py2, Pz2]) :-
-    [T, Px, Py, Pz] = Tile,
+translatePoint([T, Px, Py, Pz], X, Y, Z, Bounds, [T, Px2, Py2, Pz2]) :-
     (Xmin, Xmax, Ymin, Ymax, Zmin, Zmax) = Bounds,
     Px2 #= Px + X,
     Py2 #= Py + Y,
@@ -109,19 +105,12 @@ translatePoint(Tile, X, Y, Z, Bounds, [T, Px2, Py2, Pz2]) :-
     Py2 in Ymin..Ymax,
     Pz2 in Zmin..Zmax.
 
-isNonintersecting(Tiles, Move) :-
-    foldl(\A^T^unionCoords(A, T), Tiles, [], AllCoords),
-    tileCoords(Move, MoveCoords),
+isNonintersecting(Tiles, Tile) :-
+    foldl(\T^A^unionTileCoords(A, T), Tiles, [], AllCoords),
+    maplist(\P^pointCoords(P),Tile,Coords),
+    #\ tuples_in(Coords, AllCoords).
 
-    % TODO fix this
-    maplist(\C^notSameCoord(C), MoveCoords).
-
-notSameCoord([X1, Y1, Z1], [X2, Y2, Z2]) :-
-    X1 #\= X2,
-    Y1 #\= Y2,
-    Z1 #\= Z2.
-
-unionCoords(Acc, Tile, Res) :-
+unionTileCoords(Acc, Tile, Res) :-
     tileCoords(Tile, Coords),
     union(Acc, Coords, Res).
 
