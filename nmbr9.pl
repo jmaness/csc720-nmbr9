@@ -107,12 +107,42 @@ translatePoint([T, Px, Py, Pz], X, Y, Z, Bounds, [T, Px2, Py2, Pz2]) :-
     Pz2 #= Pz + Z.
 
 isNonintersecting(Tiles, Tile) :-
-    foldl(\T^A^unionTileCoords(A, T), Tiles, [], AllCoords),
-    maplist(\P^pointCoords(P),Tile,Coords),
+    boardTileCoords(Tiles, AllCoords),
+    tileCoords(Tile, Coords),
     forall(member(Coord, Coords), #\ tuples_in([Coord], AllCoords)).
 
 unionTileCoords(Acc, Tile, Res) :-
     tileCoords(Tile, Coords),
     union(Acc, Coords, Res).
 
-isAdjacent(Tiles, Move).
+isAdjacent(Tiles, Tile) :-
+    isAdjacentOnSameLevel(Tiles, Tile),
+    isAdjacentToPrecedingLevel(Tiles, Tile).
+
+isAdjacentOnSameLevel(Tiles, Tile) :-
+    boardTileCoords(Tiles, AllCoords),
+    tileCoords(Tile, Coords),
+    adjacentCoords(Coords, PossibleAdjacentCoords),
+    intersection(PossibleAdjacentCoords, AllCoords, AdjacentCoords),
+    length(AdjacentCoords, L),
+    L #> 0.
+
+adjacentCoords(Coords, AdjacentCoords) :-
+    foldl(\C^A^unionAdjacentCoords(A, C), Coords, [], AdjacentCoords).
+
+unionAdjacentCoords(Acc, [X, Y, Z], Res) :-
+    adjacentPoints([X, Y, Z], Points),
+    union(Acc, Points, Res).
+
+adjacentPoints([X, Y, Z], [[X1, Y, Z], [X2, Y, Z], [X, Y1, Z], [X, Y2, Z]]) :-
+    X1 is X+1,
+    X2 is X-1,
+    Y1 is Y+1,
+    Y2 is Y-1.
+
+isAdjacentToPrecedingLevel(Tiles, Tile).
+
+% helper rules
+boardTileCoords(Tiles, AllCoords) :-
+    foldl(\T^A^unionTileCoords(A, T), Tiles, [], AllCoords).
+
