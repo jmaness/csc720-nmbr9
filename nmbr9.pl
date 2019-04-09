@@ -90,12 +90,20 @@ nextMoveBounds(Tiles, Bounds) :-
     NextMoveYmin #= Ymin - 4,
     NextMoveYmax #= Ymax + 4,
     NextMoveZmin #= Zmin,
-    %NextMoveZmax #= Zmax + 1,
-    NextMoveZmax #= Zmax,
+    NextMoveZmax #= Zmax + 1,
+    %NextMoveZmax #= Zmax,
     Bounds = (NextMoveXmin, NextMoveXmax, NextMoveYmin, NextMoveYmax, NextMoveZmin, NextMoveZmax).
+
+translate(Tile, X, Y, Z, NewPos) :-
+    maplist(\P^translatePoint(P, X, Y, Z), Tile, NewPos).
 
 translate(Tile, X, Y, Z, Bounds, NewPos) :-
     maplist(\P^translatePoint(P, X, Y, Z, Bounds), Tile, NewPos).
+
+translatePoint([T, Px, Py, Pz], X, Y, Z, [T, Px2, Py2, Pz2]) :-
+    Px2 #= Px + X,
+    Py2 #= Py + Y,
+    Pz2 #= Pz + Z.
 
 translatePoint([T, Px, Py, Pz], X, Y, Z, Bounds, [T, Px2, Py2, Pz2]) :-
     (Xmin, Xmax, Ymin, Ymax, Zmin, Zmax) = Bounds,
@@ -117,7 +125,8 @@ unionTileCoords(Acc, Tile, Res) :-
 
 isAdjacent(Tiles, Tile) :-
     isAdjacentOnSameLevel(Tiles, Tile),
-    isAdjacentToPrecedingLevel(Tiles, Tile).
+    getZs(Tile, [Z|_]),
+    isAdjacentToPrecedingLevel(Tiles, Tile, Z).
 
 isAdjacentOnSameLevel(Tiles, Tile) :-
     boardTileCoords(Tiles, AllCoords),
@@ -140,9 +149,20 @@ adjacentPoints([X, Y, Z], [[X1, Y, Z], [X2, Y, Z], [X, Y1, Z], [X, Y2, Z]]) :-
     Y1 is Y+1,
     Y2 is Y-1.
 
-isAdjacentToPrecedingLevel(Tiles, Tile).
+isAdjacentToPrecedingLevel(Tiles, Tile, 0).  % A tile placed on the bottom layer does not need to overlap any other tiles.
+isAdjacentToPrecedingLevel(Tiles, Tile, Z) :-
+    translate(Tile, 0, 0, -1, NewTile),
+    tileCoords(NewTile, TileCoords),
+    PrecedingLevel is Z-1,
+    zthCoords(Tiles, PrecedingLevel, LevelCoords),
+    subset(TileCoords, LevelCoords).
+    %overlapsMultipleTiles(TileCoords, LevelCoords).
 
 % helper rules
 boardTileCoords(Tiles, AllCoords) :-
     foldl(\T^A^unionTileCoords(A, T), Tiles, [], AllCoords).
+
+zthCoords(Tiles, Z, LevelCoords) :-
+    boardTileCoords(Tiles, AllCoords),
+    include(\C^(Z = getZ(C)), AllCoords, LevelCoords).
 
