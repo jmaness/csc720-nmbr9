@@ -5,8 +5,11 @@
 tile(Id, Points, T) :- maplist(\P^tilePoint(P, Id), Points, T).
 tilePoint([Px, Py], Id, [Id, Px, Py, 0]).
 
-pointCoords([_, X, Y, Z], [X, Y, Z]).
-tileCoords(Tile, Coords) :- maplist(\P^pointCoords(P),Tile,Coords).
+tileXYCoords(Tile, Coords) :- maplist(\P^xyCoords(P), Tile, Coords).
+tileXYZCoords(Tile, Coords) :- maplist(\P^xyzCoords(P), Tile, Coords).
+
+xyCoords([_, X, Y, _], [X, Y]).
+xyzCoords([_, X, Y, Z], [X, Y, Z]).
 
 zero([[0,0], [1,0], [2,0], [0,1], [2,1], [0,2], [2, 2], [0,3], [1,3], [2,3]]).
 one([[1,0],[1,1],[1,2],[0,3],[1,3]]).
@@ -24,10 +27,12 @@ getX([_, X, _, _], X).
 getY([_, _, Y, _], Y).
 getZ([_, _, _, Z], Z).
 
-getTs(Tile, Ts) :- maplist(getT, Tile, Ts).
 getXs(Tile, Xs) :- maplist(getX, Tile, Xs).
 getYs(Tile, Ys) :- maplist(getY, Tile, Ys).
 getZs(Tile, Zs) :- maplist(getZ, Tile, Zs).
+
+getTileId(Tile, Id) :- maplist(getT, Tile, [Id|_]).
+getTileZ(Tile, Z) :- getZs(Tile, [Z|_]).
 
 % Find minimum X value across a list of tuples
 minX(Tiles, Min) :-
@@ -116,23 +121,31 @@ translatePoint([T, Px, Py, Pz], X, Y, Z, Bounds, [T, Px2, Py2, Pz2]) :-
 
 isNonintersecting(Tiles, Tile) :-
     boardTileCoords(Tiles, AllCoords),
-    tileCoords(Tile, Coords),
+    tileXYZCoords(Tile, Coords),
     forall(member(Coord, Coords), #\ tuples_in([Coord], AllCoords)).
 
 unionTileCoords(Acc, Tile, Res) :-
-    tileCoords(Tile, Coords),
+    tileXYZCoords(Tile, Coords),
+    union(Acc, Coords, Res).
+
+unionTileXYCoords(Acc, Tile, Res) :-
+    tileXYCoords(Tile, Coords),
     union(Acc, Coords, Res).
 
 isAdjacent(Tiles, Tile) :-
-    isAdjacentOnSameLevel(Tiles, Tile),
     getZs(Tile, [Z|_]),
-    isAdjacentToPrecedingLevel(Tiles, Tile, Z).
+    levelTiles(Tiles, Z, LevelTiles),
+    isAdjacentOnSameLevel(Tile, LevelTiles),
+    PrecedingLevel is Z - 1,
+    levelTiles(Tiles, PrecedingLevel, PrecedingLevelTiles),
+    overlapsPrecedingLevel(Tile, PrecedingLevelTiles).
 
-isAdjacentOnSameLevel(Tiles, Tile) :-
-    boardTileCoords(Tiles, AllCoords),
-    tileCoords(Tile, Coords),
-    adjacentCoords(Coords, PossibleAdjacentCoords),
-    intersection(PossibleAdjacentCoords, AllCoords, AdjacentCoords),
+isAdjacentOnSameLevel(_, []) :- !.
+isAdjacentOnSameLevel(Tile, LevelTiles) :-
+    boardTileCoords(LevelTiles, LevelTileCoords),
+    tileXYZCoords(Tile, TileCoords),
+    adjacentCoords(TileCoords, PossibleAdjacentCoords),
+    intersection(PossibleAdjacentCoords, LevelTileCoords, AdjacentCoords),
     length(AdjacentCoords, L),
     L #> 0.
 
@@ -149,20 +162,37 @@ adjacentPoints([X, Y, Z], [[X1, Y, Z], [X2, Y, Z], [X, Y1, Z], [X, Y2, Z]]) :-
     Y1 is Y+1,
     Y2 is Y-1.
 
-isAdjacentToPrecedingLevel(Tiles, Tile, 0).  % A tile placed on the bottom layer does not need to overlap any other tiles.
-isAdjacentToPrecedingLevel(Tiles, Tile, Z) :-
-    translate(Tile, 0, 0, -1, NewTile),
-    tileCoords(NewTile, TileCoords),
-    PrecedingLevel is Z-1,
-    zthCoords(Tiles, PrecedingLevel, LevelCoords),
-    subset(TileCoords, LevelCoords).
-    %overlapsMultipleTiles(TileCoords, LevelCoords).
+overlapsPrecedingLevel(_, []) :- !.  % A tile placed on the bottom layer does not need to overlap any other tiles.
+overlapsPrecedingLevel(Tile, LevelTiles) :-
+    tileXYCoords(Tile, TileXYCoords),
+    boardTileXYCoords(LevelTiles, LevelXYCoords),
+    subset(TileXYCoords, LevelXYCoords),
+    overlapsMultipleTiles(Tile, LevelTiles).
 
 % helper rules
 boardTileCoords(Tiles, AllCoords) :-
     foldl(\T^A^unionTileCoords(A, T), Tiles, [], AllCoords).
 
-zthCoords(Tiles, Z, LevelCoords) :-
-    boardTileCoords(Tiles, AllCoords),
-    include(\C^(Z = getZ(C)), AllCoords, LevelCoords).
+boardTileXYCoords(Tiles, AllXYCoords) :-
+    foldl(\T^A^unionTileXYCoords(A, T), Tiles, [], AllXYCoords).
+
+levelTiles(Tiles, Z, LevelTiles) :-
+    include(\T^(getTileZ(T, Z)), Tiles, LevelTiles).
+
+overlapsMultipleTiles(Tile, Tiles) :-
+    overlappedTiles(Tile, Tiles, OverlappedTiles),
+    maplist(\T^getTileId(T), OverlappedTiles, Ids),
+    sort(Ids, TileIds),  % Removes duplicates
+    length(TileIds, L),
+    L #> 1.
+
+overlappedTiles(Tile, Tiles, CoveredTiles) :-
+    include(\T^(overlaps(Tile, T)), Tiles, CoveredTiles).
+
+overlaps(TopTile, BottomTile) :-
+    tileXYCoords(TopTile, TopTileXYCoords),
+    tileXYCoords(BottomTile, BottomTileXYCoords),
+    intersection(TopTileXYCoords, BottomTileXYCoords, CommonCoords),
+    length(CommonCoords, L),
+    L #> 0.
 
