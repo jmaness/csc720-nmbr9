@@ -78,12 +78,11 @@ possibleMoves(display(Tiles), Tile, TranslatedTile) :-
     Y in NextMoveYmin..NextMoveYmax,
     Z in NextMoveZmin..NextMoveZmax,
     R in 0..3,
-    indomain(X), indomain(Y), indomain(Z),
-    indomain(R), % this effectively makes this a generate-and-test execution :(
+    indomain(X), indomain(Y), indomain(Z), indomain(R), % this effectively makes this a generate-and-test execution :(
     rotate(R, Tile, RotatedTile),
     translate(RotatedTile, X, Y, Z, Bounds, TranslatedTile),
     isNonintersecting(Tiles, TranslatedTile),
-    isAdjacent(TranslatedTile, Tiles),
+    adjacent(TranslatedTile, Tiles),
     label([X, Y, Z]).
 
 nextMoveBounds(Tiles, Bounds) :-
@@ -99,7 +98,6 @@ nextMoveBounds(Tiles, Bounds) :-
     NextMoveYmax #= Ymax + 4,
     NextMoveZmin #= Zmin,
     NextMoveZmax #= Zmax + 1,
-    %NextMoveZmax #= Zmax,
     Bounds = (NextMoveXmin, NextMoveXmax, NextMoveYmin, NextMoveYmax, NextMoveZmin, NextMoveZmax).
 
 
@@ -152,16 +150,16 @@ unionTileXYCoords(Acc, Tile, Res) :-
     tileXYCoords(Tile, Coords),
     union(Acc, Coords, Res).
 
-isAdjacent(Tile, Tiles) :-
+adjacent(Tile, Tiles) :-
     getZs(Tile, [Z|_]),
     levelTiles(Tiles, Z, LevelTiles),
-    isAdjacentOnSameLevel(Tile, LevelTiles),
+    adjacentOnSameLevel(Tile, LevelTiles),
     PrecedingLevel is Z - 1,
     levelTiles(Tiles, PrecedingLevel, PrecedingLevelTiles),
     overlapsPrecedingLevel(Tile, PrecedingLevelTiles).
 
-isAdjacentOnSameLevel(_, []) :- !.
-isAdjacentOnSameLevel(Tile, LevelTiles) :-
+adjacentOnSameLevel(_, []) :- !.
+adjacentOnSameLevel(Tile, LevelTiles) :-
     boardTileCoords(LevelTiles, LevelTileCoords),
     tileXYZCoords(Tile, TileCoords),
     adjacentCoords(TileCoords, PossibleAdjacentCoords),
@@ -216,3 +214,15 @@ overlaps(TopTile, BottomTile) :-
     length(CommonCoords, L),
     L #> 0.
 
+moveScore(Tiles, Tile, Score) :-
+    union(Tiles, [Tile], AllTiles),
+    score(AllTiles, Score).
+
+score(Tiles, Score) :-
+    foldl(\T^A^sumTileScore(T, A), Tiles, 0, Score).
+
+sumTileScore(Tile, Acc, TileScore) :-
+    getTileId(Tile, TileId),
+    TileValue is TileId mod 10,
+    getTileZ(Tile, Z),
+    TileScore is Acc + (TileValue * Z).
