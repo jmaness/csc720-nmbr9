@@ -71,16 +71,19 @@ maxZ(Tiles, Max) :-
     max_list(Zss, Max).
 
 
-possibleMoves(display(Tiles), Tile, Move) :-
+possibleMoves(display(Tiles), Tile, TranslatedTile) :-
     nextMoveBounds(Tiles, Bounds),
     (NextMoveXmin, NextMoveXmax, NextMoveYmin, NextMoveYmax, NextMoveZmin, NextMoveZmax) = Bounds,
     X in NextMoveXmin..NextMoveXmax,
     Y in NextMoveYmin..NextMoveYmax,
     Z in NextMoveZmin..NextMoveZmax,
-    indomain(X), indomain(Y), indomain(Z), % this effectively makes this a generate-and-test execution :(
-    translate(Tile, X, Y, Z, Bounds, Move),
-    isNonintersecting(Tiles, Move),
-    isAdjacent(Tiles, Move),
+    R in 0..3,
+    indomain(X), indomain(Y), indomain(Z),
+    indomain(R), % this effectively makes this a generate-and-test execution :(
+    rotate(R, Tile, RotatedTile),
+    translate(RotatedTile, X, Y, Z, Bounds, TranslatedTile),
+    isNonintersecting(Tiles, TranslatedTile),
+    isAdjacent(TranslatedTile, Tiles),
     label([X, Y, Z]).
 
 nextMoveBounds(Tiles, Bounds) :-
@@ -98,6 +101,23 @@ nextMoveBounds(Tiles, Bounds) :-
     NextMoveZmax #= Zmax + 1,
     %NextMoveZmax #= Zmax,
     Bounds = (NextMoveXmin, NextMoveXmax, NextMoveYmin, NextMoveYmax, NextMoveZmin, NextMoveZmax).
+
+
+% Rotates tile T counter-clockwise N times.
+rotate(0, Tile, Tile) :- !.
+rotate(N, Tile, RotatedTile) :-
+    N #> 0,
+    N1 #= N - 1,
+    tileXYCoords(Tile, Coords),
+    maplist(rotateCoord, Coords, Q),
+    getTileId(Tile, Id),
+    tile(Id, Q, M),
+    rotate(N1, M, RotatedTile).
+
+
+rotateCoord([A,B], [C,D]) :-
+    C is -1 * B,
+    D is A.
 
 translate(Tile, X, Y, Z, NewPos) :-
     maplist(\P^translatePoint(P, X, Y, Z), Tile, NewPos).
@@ -132,7 +152,7 @@ unionTileXYCoords(Acc, Tile, Res) :-
     tileXYCoords(Tile, Coords),
     union(Acc, Coords, Res).
 
-isAdjacent(Tiles, Tile) :-
+isAdjacent(Tile, Tiles) :-
     getZs(Tile, [Z|_]),
     levelTiles(Tiles, Z, LevelTiles),
     isAdjacentOnSameLevel(Tile, LevelTiles),
