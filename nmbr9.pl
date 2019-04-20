@@ -2,6 +2,82 @@
 :- use_module(library(lambda)).
 :- use_module(library(when)).
 
+% From "The Art of Prolog" (Sterling and Shapiro, p. 401.)
+play(Game) :-
+    initialize(Game, Position, Player),
+    displayGame(Position, Player),
+    play(Position, Player, Result).
+
+play(Position, Player, Result) :-
+    game_over(Position, Player, Result), !, announce(Result).
+
+play(Position, Player, Result) :-
+    choose_move(Position, Player, Move),
+    move(Position, Position1),
+    display_game(Position1, Player),
+    next_player(Player, Player1),
+    !, play(Position, Player, Result).
+
+choose_move(Position, computer, Move) :-
+    findall(M, move(Position, M), Moves),
+    evaluate_and_choose(Moves, Position, Move).
+
+% Greedy heuristic which selects the move that yields the
+% greatest immediate score
+greedy(Moves, Position, Move) :-
+    maplist(\M^move_score(Position, M), Moves, MoveScores),
+    foldl(\P^A^move_with_max_score(P, A), MoveScores, [Move, _]).
+
+move_score(Position, Move, [Move, Score]) :-
+    score(Position, Move, Score).
+
+move_with_max_score([M1, S1], [M2, S2], Move) :-
+    (S1 >= S2 -> Move = M1 ; Move = M2).
+
+
+% Highest level heuristic which places a tile at the highest possible level.
+% If there are more than one possible move at the highest level, use the
+% greedy heuristic for the candidate moves at the highest level.
+highest_level(Moves, Position, Move) :-
+    maplist(\M^move_score(Position, M), Moves, MoveScores),
+    foldl(\P^A^move_with_max_level(P, A), MoveScores, [Move, _]).
+
+move_with_max_level([M1, S1], [M2, S2], Move) :-
+    getTileZ(M1, Z1),
+    getTileZ(M2, Z2),
+    (Z1 > Z2 -> Move = M1 ;
+     (Z2 > Z1 -> Move = M2 ;
+      move_with_max_score([M1, S1], [M2, S2], Move))).
+
+
+card(0).
+card(1).
+card(2).
+card(3).
+card(4).
+card(5).
+card(6).
+card(7).
+card(8).
+card(9).
+
+newDeck(D) :- random_permutation(
+                  [ card(0), card(0),
+                    card(1), card(1),
+                    card(2), card(2),
+                    card(3), card(3),
+                    card(4), card(4),
+                    card(5), card(5),
+                    card(6), card(6),
+                    card(7), card(7),
+                    card(8), card(8),
+                    card(9), card(9) ], D).
+
+drawCard([C|_], C).
+
+dynamic game(D, [], []) :-
+    newDeck(D).
+
 tile(Id, Points, T) :- maplist(\P^tilePoint(P, Id), Points, T).
 tilePoint([Px, Py], Id, [Id, Px, Py, 0]).
 
@@ -11,6 +87,7 @@ tileXYZCoords(Tile, Coords) :- maplist(\P^xyzCoords(P), Tile, Coords).
 xyCoords([_, X, Y, _], [X, Y]).
 xyzCoords([_, X, Y, Z], [X, Y, Z]).
 
+% Tile templates
 zero([[0,0], [1,0], [2,0], [0,1], [2,1], [0,2], [2, 2], [0,3], [1,3], [2,3]]).
 one([[1,0],[1,1],[1,2],[0,3],[1,3]]).
 two([[0,0], [1,0], [2,0], [0,1], [1,1], [1,2], [2,2], [1,3], [2,3]]).
@@ -71,7 +148,7 @@ maxZ(Tiles, Max) :-
     max_list(Zss, Max).
 
 
-possibleMoves(display(Tiles), Tile, TranslatedTile) :-
+move(display(Tiles), Tile, TranslatedTile) :-
     nextMoveBounds(Tiles, Bounds),
     (NextMoveXmin, NextMoveXmax, NextMoveYmin, NextMoveYmax, NextMoveZmin, NextMoveZmax) = Bounds,
     X in NextMoveXmin..NextMoveXmax,
