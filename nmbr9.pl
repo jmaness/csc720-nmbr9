@@ -2,25 +2,74 @@
 :- use_module(library(lambda)).
 :- use_module(library(when)).
 
-% From "The Art of Prolog" (Sterling and Shapiro, p. 401.)
+% Adapted from "The Art of Prolog" (Sterling and Shapiro, p. 401.)
+%
 play(Game) :-
-    initialize(Game, Position, Player),
-    displayGame(Position, Player),
-    play(Position, Player, Result).
+    initialize(Game, Position),
+    displayGame(Position),
+    play(Position, Result).
 
-play(Position, Player, Result) :-
-    game_over(Position, Player, Result), !, announce(Result).
+play(Position, Result) :-
+    game_over(Position, Result), !, announce(Result).
 
-play(Position, Player, Result) :-
-    choose_move(Position, Player, Move),
-    move(Position, Position1),
-    display_game(Position1, Player),
-    next_player(Player, Player1),
-    !, play(Position, Player, Result).
+play(Position, Result) :-
+    choose_move(Position, Move),
+    move(Move, Position, Position1),
+    display_game(Position1),
+    !, play(Position, Result).
 
 choose_move(Position, computer, Move) :-
     findall(M, move(Position, M), Moves),
-    evaluate_and_choose(Moves, Position, Move).
+    heuristic(Heuristic),
+    evaluate_and_choose(Moves, Position, Heuristic, Move).
+
+evaluate_and_choose(Moves, Position, Heuristic, Move) :-
+    call(Heuristic, Moves, Position, Move).
+
+
+% initialize NMBR9
+initialize(_, game(Deck, [], [])) :-
+    newDeck(Deck).
+
+newDeck(D) :- random_permutation(
+                  [ card(0), card(0),
+                    card(1), card(1),
+                    card(2), card(2),
+                    card(3), card(3),
+                    card(4), card(4),
+                    card(5), card(5),
+                    card(6), card(6),
+                    card(7), card(7),
+                    card(8), card(8),
+                    card(9), card(9) ], D).
+
+drawCard([C | Cards], [C, Cards]).
+
+game_over(game([], _, Board), Result) :-
+    score(Board, Result).
+
+% Draw board
+displayGame(game(Deck, RevealedCards, Board)) :-
+    minX(Board, MinX),
+    maxX(Board, MaxX),
+    minY(Board, MinY),
+    maxY(Board, MaxY),
+    minZ(Board, MinZ),
+    maxZ(Board, MaxZ),
+    printLevels(Board, MinX, MaxX, MinY, MaxY, MinZ, MaxZ).
+
+printLevels(Board, MinX, MaxX, MinY, MaxY, Z, Z) :-
+    printLevel(Board, Z).
+
+printLevels(Board, MinX, MaxX, MinY, MaxY, MinZ, MaxZ) :-
+    levelTiles(Board, MaxZ, LevelTiles),
+    printLevel(LevelTiles, MinX, MaxX, MinY, MaxY),
+    NewMaxZ is MaxZ - 1,
+    printLevels(Board, MinX, MaxX, MinY, MaxY, MinZ, NewMaxZ).
+
+printLevel(Board, Z, BoardMinX, BoardMaxX, BoardMinY, BoardMaxY) :-
+    levelTiles(Board, Z, LevelTiles),
+    minX(LevelTiles, X)
 
 % Greedy heuristic which selects the move that yields the
 % greatest immediate score
@@ -29,7 +78,8 @@ greedy(Moves, Position, Move) :-
     foldl(\P^A^move_with_max_score(P, A), MoveScores, [Move, _]).
 
 move_score(Position, Move, [Move, Score]) :-
-    score(Position, Move, Score).
+    union(Position, [Move], AllTiles),
+    score(AllTiles, Score).
 
 move_with_max_score([M1, S1], [M2, S2], Move) :-
     (S1 >= S2 -> Move = M1 ; Move = M2).
@@ -50,33 +100,10 @@ move_with_max_level([M1, S1], [M2, S2], Move) :-
       move_with_max_score([M1, S1], [M2, S2], Move))).
 
 
-card(0).
-card(1).
-card(2).
-card(3).
-card(4).
-card(5).
-card(6).
-card(7).
-card(8).
-card(9).
 
-newDeck(D) :- random_permutation(
-                  [ card(0), card(0),
-                    card(1), card(1),
-                    card(2), card(2),
-                    card(3), card(3),
-                    card(4), card(4),
-                    card(5), card(5),
-                    card(6), card(6),
-                    card(7), card(7),
-                    card(8), card(8),
-                    card(9), card(9) ], D).
 
-drawCard([C|_], C).
 
-dynamic game(D, [], []) :-
-    newDeck(D).
+
 
 tile(Id, Points, T) :- maplist(\P^tilePoint(P, Id), Points, T).
 tilePoint([Px, Py], Id, [Id, Px, Py, 0]).
@@ -290,10 +317,6 @@ overlaps(TopTile, BottomTile) :-
     intersection(TopTileXYCoords, BottomTileXYCoords, CommonCoords),
     length(CommonCoords, L),
     L #> 0.
-
-moveScore(Tiles, Tile, Score) :-
-    union(Tiles, [Tile], AllTiles),
-    score(AllTiles, Score).
 
 score(Tiles, Score) :-
     foldl(\T^A^sumTileScore(T, A), Tiles, 0, Score).
