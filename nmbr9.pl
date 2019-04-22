@@ -6,19 +6,20 @@
 %
 play(Game) :-
     initialize(Game, Position),
-    displayGame(Position),
+    display_game(Position),
     play(Position, Result).
 
 play(Position, Result) :-
     game_over(Position, Result), !, announce(Result).
 
 play(Position, Result) :-
-    choose_move(Position, Move),
-    move(Move, Position, Position1),
-    display_game(Position1),
-    !, play(Position, Result).
+    draw_card(Position, Position1),
+    choose_move(Position1, Move),
+    move(Move, Position1, Position2),
+    display_game(Position2),
+    !, play(Position2, Result).
 
-choose_move(Position, computer, Move) :-
+choose_move(Position, Move) :-
     findall(M, move(Position, M), Moves),
     heuristic(Heuristic),
     evaluate_and_choose(Moves, Position, Heuristic, Move).
@@ -28,61 +29,99 @@ evaluate_and_choose(Moves, Position, Heuristic, Move) :-
 
 
 % initialize NMBR9
-initialize(_, game(Deck, [], [])) :-
-    newDeck(Deck).
+initialize(_, game(Deck, nil, [], board([]))) :-
+    new_deck(Deck).
 
-newDeck(D) :- random_permutation(
-                  [ card(0), card(0),
-                    card(1), card(1),
-                    card(2), card(2),
-                    card(3), card(3),
-                    card(4), card(4),
-                    card(5), card(5),
-                    card(6), card(6),
-                    card(7), card(7),
-                    card(8), card(8),
-                    card(9), card(9) ], D).
+new_deck(D) :- random_permutation(
+                  [ card(0, 0), card(10, 0),
+                    card(1, 1), card(11, 1),
+                    card(2, 2), card(12, 2),
+                    card(3, 3), card(13, 3),
+                    card(4, 4), card(14, 4),
+                    card(5, 5), card(15, 5),
+                    card(6, 6), card(16, 6),
+                    card(7, 7), card(17, 7),
+                    card(8, 8), card(18, 8),
+                    card(9, 9), card(19, 9) ], D).
 
-drawCard([C | Cards], [C, Cards]).
+draw_card(game([C | NewDeck], _, RevealedCards, Board), game(NewDeck, C, [C | RevealedCards], Board)).
 
-game_over(game([], _, Board), Result) :-
+
+game_over(game([], _, _, Board), Result) :-
     score(Board, Result).
 
 % Draw board
-displayGame(game(Deck, RevealedCards, Board)) :-
-    minX(Board, MinX),
-    maxX(Board, MaxX),
-    minY(Board, MinY),
-    maxY(Board, MaxY),
-    minZ(Board, MinZ),
-    maxZ(Board, MaxZ),
-    printLevels(Board, MinX, MaxX, MinY, MaxY, MinZ, MaxZ).
+display_game(game(_, _, _, board([]))) :-
+    writeln('').
 
-printLevels(Board, MinX, MaxX, MinY, MaxY, Z, Z) :-
-    printLevel(Board, Z).
+display_game(game(_, card(_, CardValue), _, Board)) :-
+    Board = board(Tiles),
+    minX(Tiles, MinX),
+    maxX(Tiles, MaxX),
+    minY(Tiles, MinY),
+    maxY(Tiles, MaxY),
+    minZ(Tiles, MinZ),
+    maxZ(Tiles, MaxZ),
+    write('Card = '), write(CardValue), nl, nl,
+    printLevels(Board, MinX, MaxX, MinY, MaxY, MinZ, MaxZ),
+    nl, nl,
+    writeln("================================================").
+
+printLevels(board(Tiles), MinX, MaxX, MinY, MaxY, Z, Z) :-
+    printLevel(Tiles, MinX, MaxX, MinY, MaxY), !.
 
 printLevels(Board, MinX, MaxX, MinY, MaxY, MinZ, MaxZ) :-
-    levelTiles(Board, MaxZ, LevelTiles),
+    Board = board(Tiles),
+    levelTiles(Tiles, MaxZ, LevelTiles),
     printLevel(LevelTiles, MinX, MaxX, MinY, MaxY),
     NewMaxZ is MaxZ - 1,
     printLevels(Board, MinX, MaxX, MinY, MaxY, MinZ, NewMaxZ).
 
-printLevel(Board, Z, BoardMinX, BoardMaxX, BoardMinY, BoardMaxY) :-
-    levelTiles(Board, Z, LevelTiles),
-    minX(LevelTiles, X)
+printLevel(LevelTiles, BoardMinX, BoardMaxX, Y, Y) :-
+    printRow(LevelTiles, BoardMinX, BoardMaxX, Y), !.
+
+printLevel(LevelTiles, BoardMinX, BoardMaxX, BoardMinY, BoardMaxY) :-
+    printRow(LevelTiles, BoardMinX, BoardMaxX, BoardMaxY),
+    nl,
+    Y is BoardMaxY - 1,
+    printLevel(LevelTiles, BoardMinX, BoardMaxX, BoardMinY, Y).
+
+printRow(LevelTiles, X, X, Y) :-
+    printCell(LevelTiles, X, Y), !.
+
+printRow(LevelTiles, BoardMinX, BoardMaxX, Y) :-
+    printCell(LevelTiles, BoardMinX, Y),
+    write(" "),
+    X is BoardMinX + 1,
+    printRow(LevelTiles, X, BoardMaxX, Y).
+
+printCell(LevelTiles, X, Y) :-
+    (findTile(LevelTiles, X, Y, Tile) ->
+         getTileId(Tile, TileId),
+         TileValue is TileId mod 10,
+         write(TileValue);
+     write(" ")).
+
+findTile([T|Ts], X, Y, Tile) :-
+    tileXYCoords(T, XYCoords),
+    (memberchk([X, Y], XYCoords) ->
+         Tile = T, !;
+     findTile(Ts, X, Y, Tile)).
+
 
 % Greedy heuristic which selects the move that yields the
 % greatest immediate score
 greedy(Moves, Position, Move) :-
     maplist(\M^move_score(Position, M), Moves, MoveScores),
-    foldl(\P^A^move_with_max_score(P, A), MoveScores, [Move, _]).
+    foldl(\P^A^move_with_max_score(P, A), MoveScores, [], [Move, _]).
 
-move_score(Position, Move, [Move, Score]) :-
-    union(Position, [Move], AllTiles),
-    score(AllTiles, Score).
+move_score(game(_, _, _, board(Tiles)), Move, [Move, Score]) :-
+    score([Move | Tiles], Score).
 
-move_with_max_score([M1, S1], [M2, S2], Move) :-
-    (S1 >= S2 -> Move = M1 ; Move = M2).
+move_with_max_score([M, S], [], [M, S]).
+move_with_max_score([], [M, S], [M, S]).
+move_with_max_score([M1, S1], [M2, S2], [M, S]) :-
+    (S1 >= S2 -> M = M1, S = S1 ; M = M2, S = S2).
 
 
 % Highest level heuristic which places a tile at the highest possible level.
@@ -98,9 +137,6 @@ move_with_max_level([M1, S1], [M2, S2], Move) :-
     (Z1 > Z2 -> Move = M1 ;
      (Z2 > Z1 -> Move = M2 ;
       move_with_max_score([M1, S1], [M2, S2], Move))).
-
-
-
 
 
 
@@ -126,6 +162,17 @@ seven([[0,0], [0,1], [1,1], [1,2], [0,3], [1,3], [2,3]]).
 eight([[0,0], [1,0], [0,1], [1,1], [1,2], [2,2], [1,3], [2,3]]).
 nine([[0,0], [1,0], [0,1], [1,1], [0,2], [1,2], [2,2], [0,3], [1,3], [2,3]]).
 
+card(_, 0, Points) :- zero(Points).
+card(_, 1, Points) :- one(Points).
+card(_, 2, Points) :- two(Points).
+card(_, 3, Points) :- three(Points).
+card(_, 4, Points) :- four(Points).
+card(_, 5, Points) :- five(Points).
+card(_, 6, Points) :- six(Points).
+card(_, 7, Points) :- seven(Points).
+card(_, 8, Points) :- eight(Points).
+card(_, 9, Points) :- nine(Points).
+
 getT([T, _, _, _], T).
 getX([_, X, _, _], X).
 getY([_, _, Y, _], Y).
@@ -139,55 +186,70 @@ getTileId(Tile, Id) :- maplist(getT, Tile, [Id|_]).
 getTileZ(Tile, Z) :- getZs(Tile, [Z|_]).
 
 % Find minimum X value across a list of tuples
+minX([], 0).
 minX(Tiles, Min) :-
     maplist(\T^getXs(T), Tiles, Xs),
     flatten(Xs, Xss),
     min_list(Xss, Min).
 
 % Find maximum X value across a list of tuples
+maxX([], 0).
 maxX(Tiles, Max) :-
     maplist(\T^getXs(T), Tiles, Xs),
     flatten(Xs, Xss),
     max_list(Xss, Max).
 
 % Find minimum Y value across a list of tuples
+minY([], 0).
 minY(Tiles, Min) :-
     maplist(\T^getYs(T), Tiles, Ys),
     flatten(Ys, Yss),
     min_list(Yss, Min).
 
 % Find maximum Y value across a list of tuples
+%maxY([], 0).
 maxY(Tiles, Max) :-
     maplist(\T^getYs(T), Tiles, Ys),
     flatten(Ys, Yss),
     max_list(Yss, Max).
 
 % Find minimum Z value across a list of tuples
+%minZ([], 0).
 minZ(Tiles, Min) :-
     maplist(\T^getZs(T), Tiles, Zs),
     flatten(Zs, Zss),
     min_list(Zss, Min).
 
 % Find maximum Z value across a list of tuples
+%maxZ([], 0).
 maxZ(Tiles, Max) :-
     maplist(\T^getZs(T), Tiles, Zs),
     flatten(Zs, Zss),
     max_list(Zss, Max).
 
+% Actually perform the move which updates the game state
+move(Move, game(Deck, Card, RevealedCards, board(Tiles)), game(Deck, Card, RevealedCards, board([Move | Tiles]))).
 
-move(display(Tiles), Tile, TranslatedTile) :-
+% Generate moves given a game state
+move(game(_, card(CardId, CardValue), _, board([])), Move) :-
+    card(CardId, CardValue, Points),
+    tile(CardId, Points, Move), !.
+
+move(game(_, card(CardId, CardValue), _, board(Tiles)), Move) :-
+    card(CardId, CardValue, Points),
+    tile(CardId, Points, Tile),
     nextMoveBounds(Tiles, Bounds),
     (NextMoveXmin, NextMoveXmax, NextMoveYmin, NextMoveYmax, NextMoveZmin, NextMoveZmax) = Bounds,
     X in NextMoveXmin..NextMoveXmax,
     Y in NextMoveYmin..NextMoveYmax,
     Z in NextMoveZmin..NextMoveZmax,
     R in 0..3,
-    indomain(X), indomain(Y), indomain(Z), indomain(R), % this effectively makes this a generate-and-test execution :(
+    indomain(X), indomain(Y), indomain(Z), indomain(R),
     rotate(R, Tile, RotatedTile),
     translate(RotatedTile, X, Y, Z, Bounds, TranslatedTile),
     isNonintersecting(Tiles, TranslatedTile),
     adjacent(TranslatedTile, Tiles),
-    label([X, Y, Z]).
+    Move = TranslatedTile.
 
 nextMoveBounds(Tiles, Bounds) :-
     minX(Tiles, Xmin),
