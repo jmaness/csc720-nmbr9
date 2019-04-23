@@ -160,7 +160,6 @@ printCell(LevelTiles, X, Y) :-
          write(TileValue);
      write(" ")).
 
-%findTile([], _, _, _) :- !.
 findTile([T|Ts], X, Y, Tile) :-
     tileXYCoords(T, XYCoords),
     (memberchk([X, Y], XYCoords) ->
@@ -211,16 +210,18 @@ move_with_max_level([M1, S1, A1], [M2, S2, A2], [M, S, A]) :-
       move_with_max_score([M1, S1, A1], [M2, S2, A2], [M, S, A]))).
 
 
+make_tile(Id, Points, tile(Id, TilePoints)) :-
+    maplist(\P^tilePoint(P), Points, TilePoints).
 
 
-tile(Id, Points, T) :- maplist(\P^tilePoint(P, Id), Points, T).
-tilePoint([Px, Py], Id, [Id, Px, Py, 0]).
+%tile(Id, Points, T) :- maplist(\P^tilePoint(P, Id), Points, T).
+tilePoint([Px, Py], [Px, Py, 0]).
 
-tileXYCoords(Tile, Coords) :- maplist(\P^xyCoords(P), Tile, Coords).
-tileXYZCoords(Tile, Coords) :- maplist(\P^xyzCoords(P), Tile, Coords).
+tileXYCoords(tile(_, TilePoints), Coords) :- maplist(\P^xyCoords(P), TilePoints, Coords).
+tileXYZCoords(tile(_, TilePoints), Coords) :- maplist(\P^xyzCoords(P), TilePoints, Coords).
 
-xyCoords([_, X, Y, _], [X, Y]).
-xyzCoords([_, X, Y, Z], [X, Y, Z]).
+xyCoords([X, Y, _], [X, Y]).
+xyzCoords([X, Y, Z], [X, Y, Z]).
 
 % Tile templates
 zero([[0,0], [1,0], [2,0], [0,1], [2,1], [0,2], [2, 2], [0,3], [1,3], [2,3]]).
@@ -246,16 +247,15 @@ card(_, 8, Points) :- eight(Points).
 card(_, 9, Points) :- nine(Points).
 card(_, _, _) :- !, fail.
 
-getT([T, _, _, _], T).
-getX([_, X, _, _], X).
-getY([_, _, Y, _], Y).
-getZ([_, _, _, Z], Z).
+getX([X, _, _], X).
+getY([_, Y, _], Y).
+getZ([_, _, Z], Z).
 
-getXs(Tile, Xs) :- maplist(getX, Tile, Xs).
-getYs(Tile, Ys) :- maplist(getY, Tile, Ys).
-getZs(Tile, Zs) :- maplist(getZ, Tile, Zs).
+getXs(tile(_, TilePoints), Xs) :- maplist(getX, TilePoints, Xs).
+getYs(tile(_, TilePoints), Ys) :- maplist(getY, TilePoints, Ys).
+getZs(tile(_, TilePoints), Zs) :- maplist(getZ, TilePoints, Zs).
 
-getTileId(Tile, Id) :- maplist(getT, Tile, [Id|_]).
+getTileId(tile(Id, _), Id).
 getTileZ(Tile, Z) :- getZs(Tile, [Z|_]).
 
 % Find minimum X value across a list of tuples
@@ -304,13 +304,13 @@ maxZ(Tiles, Max) :-
 move(Move, game(Deck, Card, RevealedCards, board(Tiles)), game(Deck, Card, RevealedCards, board([Move | Tiles]))).
 
 % Generate moves given a game state
-move(game(_, card(CardId, CardValue), _, board([])), tileMove(Move, 0)) :-
+move(game(_, card(CardId, CardValue), _, board([])), tileMove(Tile, 0)) :-
     card(CardId, CardValue, Points),
-    tile(CardId, Points, Move), !.
+    make_tile(CardId, Points, Tile), !.
 
 move(game(_, card(CardId, CardValue), _, board(Tiles)), Move) :-
     card(CardId, CardValue, Points),
-    tile(CardId, Points, Tile),
+    make_tile(CardId, Points, Tile),
     nextMoveBounds(Tiles, Bounds),
     (NextMoveXmin, NextMoveXmax, NextMoveYmin, NextMoveYmax, NextMoveZmin, NextMoveZmax) = Bounds,
     X in NextMoveXmin..NextMoveXmax,
@@ -344,13 +344,12 @@ nextMoveBounds(Tiles, Bounds) :-
 
 % Rotates tile T counter-clockwise N times.
 rotate(0, Tile, Tile) :- !.
-rotate(N, Tile, RotatedTile) :-
+rotate(N, tile(Id, TilePoints), RotatedTile) :-
     N > 0,
     N1 is N - 1,
-    tileXYCoords(Tile, Coords),
+    tileXYCoords(TilePoints, Coords),
     maplist(rotateCoord, Coords, Q),
-    getTileId(Tile, Id),
-    tile(Id, Q, M),
+    make_tile(Id, Q, M),
     rotate(N1, M, RotatedTile).
 
 
@@ -358,18 +357,10 @@ rotateCoord([A,B], [C,D]) :-
     C is -1 * B,
     D is A.
 
-%translate(Tile, X, Y, Z, NewPos) :-
-%    maplist(\P^translatePoint(P, X, Y, Z), Tile, NewPos).
+translate(tile(Id, TilePoints), X, Y, Z, Bounds, tile(Id, NewTilePoints)) :-
+    maplist(\P^translatePoint(P, X, Y, Z, Bounds), TilePoints, NewTilePoints).
 
-translate(Tile, X, Y, Z, Bounds, NewPos) :-
-    maplist(\P^translatePoint(P, X, Y, Z, Bounds), Tile, NewPos).
-
-%translatePoint([T, Px, Py, Pz], X, Y, Z, [T, Px2, Py2, Pz2]) :-
-%    Px2 is Px + X,
-%    Py2 is Py + Y,
-%    Pz2 is Pz + Z.
-
-translatePoint([T, Px, Py, Pz], X, Y, Z, Bounds, [T, Px2, Py2, Pz2]) :-
+translatePoint([Px, Py, Pz], X, Y, Z, Bounds, [Px2, Py2, Pz2]) :-
     (Xmin, Xmax, Ymin, Ymax, Zmin, Zmax) = Bounds,
     %Px2 in Xmin..Xmax,
     %Py2 in Ymin..Ymax,
