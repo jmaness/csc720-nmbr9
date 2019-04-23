@@ -2,26 +2,53 @@
 :- use_module(library(lambda)).
 :- use_module(library(when)).
 
+playNTimes(N) :-
+    playNTimes(0, N).
+
+playNTimes(N, N) :- !.
+playNTimes(M, N) :-
+    M1 is M + 1,
+    write('Game '),writeln(M1),
+    playBoth(),
+    writeln('------------------'),
+    playNTimes(M1, N).
+
+
+playBoth() :-
+    initialize(Position),
+    playQuiet(greedy, Position, _),
+    playQuiet(highest_level, Position, _), !.
+
+playQuiet(Heuristic, Position, Result) :-
+    game_over(Position, Result), !, 
+    write('('),write(Heuristic),write(') '),
+    announce(Result).
+
+playQuiet(Heuristic, Position, Result) :-
+    draw_card(Position, Position1),
+    choose_move(Heuristic, Position1, Move),
+    move(Move, Position1, Position2),
+    !, playQuiet(Heuristic, Position2, Result).
+
 % Adapted from "The Art of Prolog" (Sterling and Shapiro, p. 401.)
 %
-play(Game) :-
-    initialize(Game, Position),
+play(Heuristic) :-
+    initialize(Position),
     display_game(Position),
-    play(Position, _), !.
+    play(Heuristic, Position, _), !.
 
-play(Position, Result) :-
+play(_, Position, Result) :-
     game_over(Position, Result), !, announce(Result).
 
-play(Position, Result) :-
+play(Heuristic, Position, Result) :-
     draw_card(Position, Position1),
-    choose_move(Position1, Move),
+    choose_move(Heuristic, Position1, Move),
     move(Move, Position1, Position2),
     display_game(Position2),
-    !, play(Position2, Result).
+    !, play(Heuristic, Position2, Result).
 
-choose_move(Position, Move) :-
+choose_move(Heuristic, Position, Move) :-
     findall(M, move(Position, M), Moves),
-    heuristic(Heuristic),
     evaluate_and_choose(Moves, Position, Heuristic, Move).
 
 evaluate_and_choose(Moves, Position, Heuristic, Move) :-
@@ -31,7 +58,7 @@ announce(Result) :-
     write('Score is '),write(Result),nl.
 
 % initialize NMBR9
-initialize(_, game(Deck, nil, [], board([]))) :-
+initialize(game(Deck, nil, [], board([]))) :-
     new_deck(Deck).
 
 initialize2(_, game([ card(3, 3),
