@@ -31,10 +31,10 @@ announce(Result) :-
     write('Score is '),write(Result),nl.
 
 % initialize NMBR9
-%initialize(_, game(Deck, nil, [], board([]))) :-
-%    new_deck(Deck).
+initialize(_, game(Deck, nil, [], board([]))) :-
+    new_deck(Deck).
 
-initialize(_, game([ card(3, 3),
+initialize2(_, game([ card(3, 3),
                      card(1,1),
                      card(9,9),
                      card(5,5),
@@ -170,14 +170,18 @@ move_with_max_score([M1, S1, A1], [M2, S2, A2], [M, S, A]) :-
 % greedy heuristic for the candidate moves at the highest level.
 highest_level(Moves, Position, Move) :-
     maplist(\M^move_score(Position, M), Moves, MoveScores),
-    foldl(\P^A^move_with_max_level(P, A), MoveScores, [Move, _]).
+    foldl(\P^A^move_with_max_level(P, A), MoveScores, [], [Move, _, _]).
 
-move_with_max_level([M1, S1], [M2, S2], Move) :-
+move_with_max_level([M, S, A], [], [M, S, A]) :- !.
+move_with_max_level([], [M, S, A], [M, S, A]) :- !.
+move_with_max_level([M1, S1, A1], [M2, S2, A2], [M, S, A]) :-
     getTileZ(M1, Z1),
     getTileZ(M2, Z2),
-    (Z1 > Z2 -> Move = M1 ;
-     (Z2 > Z1 -> Move = M2 ;
-      move_with_max_score([M1, S1], [M2, S2], Move))).
+    (Z1 > Z2 ->
+         M = M1, S = S1, A = A1 ;
+     (Z2 > Z1 ->
+          M = M2, S = S2, A = A2 ;
+      move_with_max_score([M1, S1, A1], [M2, S2, A2], [M, S, A]))).
 
 
 
