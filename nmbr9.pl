@@ -214,7 +214,6 @@ make_tile(Id, Points, tile(Id, TilePoints)) :-
     maplist(\P^tilePoint(P), Points, TilePoints).
 
 
-%tile(Id, Points, T) :- maplist(\P^tilePoint(P, Id), Points, T).
 tilePoint([Px, Py], [Px, Py, 0]).
 
 tileXYCoords(tile(_, TilePoints), Coords) :- maplist(\P^xyCoords(P), TilePoints, Coords).
@@ -280,7 +279,7 @@ minY(Tiles, Min) :-
     min_list(Yss, Min).
 
 % Find maximum Y value across a list of tuples
-%maxY([], 0).
+maxY([], 0).
 maxY(Tiles, Max) :-
     maplist(\T^getYs(T), Tiles, Ys),
     flatten(Ys, Yss),
@@ -322,8 +321,6 @@ move(game(_, card(CardId, CardValue), _, board(Tiles)), Move) :-
     translate(RotatedTile, X, Y, Z, Bounds, TranslatedTile),
     isNonintersecting(Tiles, TranslatedTile),
     adjacent(TranslatedTile, Tiles, Move),
-    %write('TranslatedTile = '),write(TranslatedTile),nl,
-    %write('Move = '),write(Move),nl,
     label([X, Y, Z, R]).
 
 nextMoveBounds(Tiles, Bounds) :-
@@ -362,9 +359,6 @@ translate(tile(Id, TilePoints), X, Y, Z, Bounds, tile(Id, NewTilePoints)) :-
 
 translatePoint([Px, Py, Pz], X, Y, Z, Bounds, [Px2, Py2, Pz2]) :-
     (Xmin, Xmax, Ymin, Ymax, Zmin, Zmax) = Bounds,
-    %Px2 in Xmin..Xmax,
-    %Py2 in Ymin..Ymax,
-    %Pz2 in Zmin..Zmax,
     Px2 is Px + X,
     Py2 is Py + Y,
     Pz2 is Pz + Z,
@@ -374,11 +368,6 @@ translatePoint([Px, Py, Pz], X, Y, Z, Bounds, [Px2, Py2, Pz2]) :-
     Py2 =< Ymax,
     Pz2 >= Zmin,
     Pz2 =< Zmax.
-
-%isNonintersecting(Tiles, Tile) :-
-%    boardTileCoords(Tiles, AllCoords),
-%    tileXYZCoords(Tile, Coords),
-%    forall(member(Coord, Coords), #\ tuples_in([Coord], AllCoords)).
 
 isNonintersecting(Tiles, Tile) :-
     getTileZ(Tile, Z),
@@ -400,8 +389,6 @@ adjacent(Tile, Tiles, Move) :-
     getTileZ(Tile, Z),
     levelTiles(Tiles, Z, LevelTiles),
     adjacentOnSameLevel(Tile, LevelTiles, Move),
-    %write('(adjacent) Tile = '),write(Tile),nl,
-    %write('(adjacent) Move = '),write(Move),nl,
     PrecedingLevel is Z - 1,
     levelTiles(Tiles, PrecedingLevel, PrecedingLevelTiles),
     overlapsPrecedingLevel(Tile, PrecedingLevelTiles).
@@ -463,11 +450,9 @@ overlaps(TopTile, BottomTile) :-
     L > 0.
 
 score(Tiles, Score) :-
-    %write('Tiles = '),write(Tiles),nl,
     foldl(\T^A^sumTileScore(T, A), Tiles, 0, Score).
 
 sumTileScore(Tile, Acc, TileScore) :-
-    %write('Tile = '), write(Tile),nl,
     getTileId(Tile, TileId),
     TileValue is TileId mod 10,
     getTileZ(Tile, Z),
