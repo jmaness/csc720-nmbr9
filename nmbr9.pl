@@ -34,8 +34,13 @@ playQuiet(Heuristic, Position, Result) :-
 %
 play(Heuristic) :-
     initialize(Position),
+    write('Game = '),write(Position),
     display_game(Position),
     play(Heuristic, Position, _), !.
+
+play(Heuristic, Game) :-
+    display_game(Game),
+    play(Heuristic, Game, _), !.
 
 play(_, Position, Result) :-
     game_over(Position, Result), !, announce(Result).
@@ -210,17 +215,14 @@ move_with_max_level([M1, S1, A1], [M2, S2, A2], [M, S, A]) :-
       move_with_max_score([M1, S1, A1], [M2, S2, A2], [M, S, A]))).
 
 
-make_tile(Id, Points, tile(Id, TilePoints)) :-
-    maplist(\P^tilePoint(P), Points, TilePoints).
+make_tile(Id, Points, tile(Id, 0, Points)).
+make_tile(Id, Level, Points, tile(Id, Level, Points)).
 
 
-tilePoint([Px, Py], [Px, Py, 0]).
+tileXYCoords(tile(_, _, TilePoints), TilePoints).
+tileXYZCoords(tile(_, Z, TilePoints), Coords) :- maplist(\P^xyzCoords(P, Z), TilePoints, Coords).
 
-tileXYCoords(tile(_, TilePoints), Coords) :- maplist(\P^xyCoords(P), TilePoints, Coords).
-tileXYZCoords(tile(_, TilePoints), Coords) :- maplist(\P^xyzCoords(P), TilePoints, Coords).
-
-xyCoords([X, Y, _], [X, Y]).
-xyzCoords([X, Y, Z], [X, Y, Z]).
+xyzCoords([X, Y], Z, [X, Y, Z]).
 
 % Tile templates
 zero([[0,0], [1,0], [2,0], [0,1], [2,1], [0,2], [2, 2], [0,3], [1,3], [2,3]]).
@@ -246,16 +248,14 @@ card(_, 8, Points) :- eight(Points).
 card(_, 9, Points) :- nine(Points).
 card(_, _, _) :- !, fail.
 
-getX([X, _, _], X).
-getY([_, Y, _], Y).
-getZ([_, _, Z], Z).
+getX([X, _], X).
+getY([_, Y], Y).
 
-getXs(tile(_, TilePoints), Xs) :- maplist(getX, TilePoints, Xs).
-getYs(tile(_, TilePoints), Ys) :- maplist(getY, TilePoints, Ys).
-getZs(tile(_, TilePoints), Zs) :- maplist(getZ, TilePoints, Zs).
+getXs(tile(_, _, TilePoints), Xs) :- maplist(getX, TilePoints, Xs).
+getYs(tile(_, _, TilePoints), Ys) :- maplist(getY, TilePoints, Ys).
 
-getTileId(tile(Id, _), Id).
-getTileZ(Tile, Z) :- getZs(Tile, [Z|_]).
+getTileId(tile(Id, _, _), Id).
+getTileZ(tile(_, Z, _), Z).
 
 % Find minimum X value across a list of tuples
 minX([], 0).
@@ -288,16 +288,14 @@ maxY(Tiles, Max) :-
 % Find minimum Z value across a list of tuples
 minZ([], 0).
 minZ(Tiles, Min) :-
-    maplist(\T^getZs(T), Tiles, Zs),
-    flatten(Zs, Zss),
-    min_list(Zss, Min).
+    maplist(\T^getTileZ(T), Tiles, Zs),
+    min_list(Zs, Min).
 
 % Find maximum Z value across a list of tuples
 maxZ([], 0).
 maxZ(Tiles, Max) :-
-    maplist(\T^getZs(T), Tiles, Zs),
-    flatten(Zs, Zss),
-    max_list(Zss, Max).
+    maplist(\T^getTileZ(T), Tiles, Zs),
+    max_list(Zs, Max).
 
 % Actually perform the move which updates the game state
 move(Move, game(Deck, Card, RevealedCards, board(Tiles)), game(Deck, Card, RevealedCards, board([Move | Tiles]))).
@@ -341,12 +339,12 @@ nextMoveBounds(Tiles, Bounds) :-
 
 % Rotates tile T counter-clockwise N times.
 rotate(0, Tile, Tile) :- !.
-rotate(N, tile(Id, TilePoints), RotatedTile) :-
+rotate(N, tile(Id, Z, TilePoints), RotatedTile) :-
     N > 0,
     N1 is N - 1,
     tileXYCoords(TilePoints, Coords),
     maplist(rotateCoord, Coords, Q),
-    make_tile(Id, Q, M),
+    make_tile(Id, Z, Q, M),
     rotate(N1, M, RotatedTile).
 
 
@@ -354,20 +352,21 @@ rotateCoord([A,B], [C,D]) :-
     C is -1 * B,
     D is A.
 
-translate(tile(Id, TilePoints), X, Y, Z, Bounds, tile(Id, NewTilePoints)) :-
-    maplist(\P^translatePoint(P, X, Y, Z, Bounds), TilePoints, NewTilePoints).
+translate(tile(Id, Level, TilePoints), X, Y, Z, Bounds, tile(Id, NewZ, NewTilePoints)) :-
+    NewZ is Level + Z,
+    (_, _, _, _, Zmin, Zmax) = Bounds,
+    NewZ >= Zmin,
+    NewZ =< Zmax,
+    maplist(\P^translatePoint(P, X, Y, Bounds), TilePoints, NewTilePoints).
 
-translatePoint([Px, Py, Pz], X, Y, Z, Bounds, [Px2, Py2, Pz2]) :-
-    (Xmin, Xmax, Ymin, Ymax, Zmin, Zmax) = Bounds,
+translatePoint([Px, Py], X, Y, Bounds, [Px2, Py2]) :-
+    (Xmin, Xmax, Ymin, Ymax, _, _) = Bounds,
     Px2 is Px + X,
     Py2 is Py + Y,
-    Pz2 is Pz + Z,
     Px2 >= Xmin,
     Px2 =< Xmax,
     Py2 >= Ymin,
-    Py2 =< Ymax,
-    Pz2 >= Zmin,
-    Pz2 =< Zmax.
+    Py2 =< Ymax.
 
 isNonintersecting(Tiles, Tile) :-
     getTileZ(Tile, Z),
@@ -395,21 +394,21 @@ adjacent(Tile, Tiles, Move) :-
 
 adjacentOnSameLevel(Tile, [], tileMove(Tile, 0)) :- !.
 adjacentOnSameLevel(Tile, LevelTiles, tileMove(Tile, L)) :-
-    boardTileCoords(LevelTiles, LevelTileCoords),
-    tileXYZCoords(Tile, TileCoords),
-    adjacentCoords(TileCoords, PossibleAdjacentCoords),
-    intersection(PossibleAdjacentCoords, LevelTileCoords, AdjacentCoords),
-    length(AdjacentCoords, L),
+    boardTileXYCoords(LevelTiles, LevelTileXYCoords),
+    tileXYCoords(Tile, TileXYCoords),
+    adjacentCoords(TileXYCoords, PossibleAdjacentXYCoords),
+    intersection(PossibleAdjacentXYCoords, LevelTileXYCoords, AdjacentXYCoords),
+    length(AdjacentXYCoords, L),
     L > 0.
 
 adjacentCoords(Coords, AdjacentCoords) :-
     foldl(\C^A^unionAdjacentCoords(A, C), Coords, [], AdjacentCoords).
 
-unionAdjacentCoords(Acc, [X, Y, Z], Res) :-
-    adjacentPoints([X, Y, Z], Points),
+unionAdjacentCoords(Acc, [X, Y], Res) :-
+    adjacentPoints([X, Y], Points),
     union(Acc, Points, Res).
 
-adjacentPoints([X, Y, Z], [[X1, Y, Z], [X2, Y, Z], [X, Y1, Z], [X, Y2, Z]]) :-
+adjacentPoints([X, Y], [[X1, Y], [X2, Y], [X, Y1], [X, Y2]]) :-
     X1 is X+1,
     X2 is X-1,
     Y1 is Y+1,
@@ -423,9 +422,6 @@ overlapsPrecedingLevel(Tile, LevelTiles) :-
     overlapsMultipleTiles(Tile, LevelTiles).
 
 % helper rules
-boardTileCoords(Tiles, AllCoords) :-
-    foldl(\T^A^unionTileCoords(A, T), Tiles, [], AllCoords).
-
 boardTileXYCoords(Tiles, AllXYCoords) :-
     foldl(\T^A^unionTileXYCoords(A, T), Tiles, [], AllXYCoords).
 
