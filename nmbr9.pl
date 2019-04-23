@@ -2,33 +2,6 @@
 :- use_module(library(lambda)).
 :- use_module(library(when)).
 
-playNTimes(N) :-
-    playNTimes(0, N).
-
-playNTimes(N, N) :- !.
-playNTimes(M, N) :-
-    M1 is M + 1,
-    write('Game '),writeln(M1),
-    playBoth(),
-    writeln('------------------'),
-    playNTimes(M1, N).
-
-
-playBoth() :-
-    initialize(Position),
-    playQuiet(greedy, Position, _),
-    playQuiet(highest_level, Position, _), !.
-
-playQuiet(Heuristic, Position, Result) :-
-    game_over(Position, Result), !, 
-    write('('),write(Heuristic),write(') '),
-    announce(Result).
-
-playQuiet(Heuristic, Position, Result) :-
-    draw_card(Position, Position1),
-    choose_move(Heuristic, Position1, Move),
-    move(Move, Position1, Position2),
-    !, playQuiet(Heuristic, Position2, Result).
 
 % Adapted from "The Art of Prolog" (Sterling and Shapiro, p. 401.)
 %
@@ -62,35 +35,9 @@ evaluate_and_choose(Moves, Position, Heuristic, Move) :-
 announce(Result) :-
     write('Score is '),write(Result),nl.
 
-% initialize NMBR9
+% Initialize NMBR9 with a shuffled deck and an empty board
 initialize(game(Deck, nil, [], board([]))) :-
     new_deck(Deck).
-
-initialize2(_, game([ card(3, 3),
-                     card(1,1),
-                     card(9,9),
-                     card(5,5),
-                     card(15,5),
-                     card(16,6),
-                     card(11,1),
-                     card(2,2),
-                     card(19,9),
-                     card(8,8),
-                     card(0,0),
-                     card(12,2),
-                     card(6,6),
-                     card(18,8),
-                     card(4,4),
-                     card(13,3),
-                     card(14,4),
-                     card(10,0),
-                     card(7,7),
-                     card(17,7)
-                   ],
-                   nil,
-                   [],
-                   board([]))).
-
 
 new_deck(D) :- random_permutation(
                   [ card(0, 0), card(10, 0),
@@ -104,7 +51,7 @@ new_deck(D) :- random_permutation(
                     card(8, 8), card(18, 8),
                     card(9, 9), card(19, 9) ], D).
 
-draw_card(game([C | NewDeck], _, RevealedCards, Board), game(NewDeck, C, [C | RevealedCards], Board)).
+draw_card(game([C | New_Deck], _, Revealed_Cards, Board), game(New_Deck, C, [C | Revealed_Cards], Board)).
 
 
 game_over(game([], _, _, board(Tiles)), Result) :-
@@ -114,71 +61,70 @@ game_over(game([], _, _, board(Tiles)), Result) :-
 display_game(game(_, _, _, board([]))) :-
     writeln('').
 
-display_game(game(_, card(_, CardValue), _, Board)) :-
+display_game(game(_, card(_, Card_Value), _, Board)) :-
     Board = board(Tiles),
-    minX(Tiles, MinX),
-    maxX(Tiles, MaxX),
-    minY(Tiles, MinY),
-    maxY(Tiles, MaxY),
-    minZ(Tiles, MinZ),
-    maxZ(Tiles, MaxZ),
-    write('Card = '), write(CardValue), nl, nl,
-    printLevels(Board, MinX, MaxX, MinY, MaxY, MinZ, MaxZ),
+    x_min(Tiles, X_min),
+    x_max(Tiles, X_max),
+    y_min(Tiles, Y_min),
+    y_max(Tiles, Y_max),
+    z_min(Tiles, Z_min),
+    z_max(Tiles, Z_max),
+    write('Card = '), write(Card_Value), nl, nl,
+    print_levels(Board, X_min, X_max, Y_min, Y_max, Z_min, Z_max),
     nl, nl,
     writeln("================================================").
 
-printLevels(board(Tiles), MinX, MaxX, MinY, MaxY, Z, Z) :-
-    printLevel(Tiles, MinX, MaxX, MinY, MaxY), !.
+print_levels(board(Tiles), X_min, X_max, Y_min, Y_max, Z, Z) :-
+    level_tiles(Tiles, Z, Level_tiles),
+    print_level(Level_tiles, X_min, X_max, Y_min, Y_max), !.
 
-printLevels(Board, MinX, MaxX, MinY, MaxY, MinZ, MaxZ) :-
+print_levels(Board, X_min, X_max, Y_min, Y_max, Z_min, Z_max) :-
     Board = board(Tiles),
-    levelTiles(Tiles, MaxZ, LevelTiles),
-    printLevel(LevelTiles, MinX, MaxX, MinY, MaxY),
-    NewMaxZ is MaxZ - 1,
-    printLevels(Board, MinX, MaxX, MinY, MaxY, MinZ, NewMaxZ).
+    level_tiles(Tiles, Z_max, Level_tiles),
+    print_level(Level_tiles, X_min, X_max, Y_min, Y_max),
+    Z is Z_max - 1,
+    print_levels(Board, X_min, X_max, Y_min, Y_max, Z_min, Z).
 
-printLevel(LevelTiles, BoardMinX, BoardMaxX, Y, Y) :-
-    printRow(LevelTiles, BoardMinX, BoardMaxX, Y),
+print_level(Level_tiles, Board_x_min, Board_x_max, Y, Y) :-
+    print_row(Level_tiles, Board_x_min, Board_x_max, Y),
     nl,
     writeln("------------------------------------------------"),
     !.
 
-printLevel(LevelTiles, BoardMinX, BoardMaxX, BoardMinY, BoardMaxY) :-
-    printRow(LevelTiles, BoardMinX, BoardMaxX, BoardMaxY),
+print_level(Level_tiles, Board_x_min, Board_x_max, Board_y_min, Board_y_max) :-
+    print_row(Level_tiles, Board_x_min, Board_x_max, Board_y_max),
     nl,
-    Y is BoardMaxY - 1,
-    printLevel(LevelTiles, BoardMinX, BoardMaxX, BoardMinY, Y).
+    Y is Board_y_max - 1,
+    print_level(Level_tiles, Board_x_min, Board_x_max, Board_y_min, Y).
 
-printRow(LevelTiles, X, X, Y) :-
-    printCell(LevelTiles, X, Y), !.
+print_row(Level_tiles, X, X, Y) :-
+    print_cell(Level_tiles, X, Y), !.
 
-printRow(LevelTiles, BoardMinX, BoardMaxX, Y) :-
-    printCell(LevelTiles, BoardMinX, Y),
+print_row(Level_tiles, Board_x_min, Board_x_max, Y) :-
+    print_cell(Level_tiles, Board_x_min, Y),
     write(" "),
-    X is BoardMinX + 1,
-    printRow(LevelTiles, X, BoardMaxX, Y).
+    X is Board_x_min + 1,
+    print_row(Level_tiles, X, Board_x_max, Y).
 
-printCell(LevelTiles, X, Y) :-
-    (findTile(LevelTiles, X, Y, Tile) ->
-         getTileId(Tile, TileId),
-         TileValue is TileId mod 10,
-         write(TileValue);
+print_cell(Level_tiles, X, Y) :-
+    (find_tile(Level_tiles, X, Y, Tile) ->
+         tile_id(Tile, TileId),
+         Value is TileId mod 10,
+         write(Value);
      write(" ")).
 
-findTile([T|Ts], X, Y, Tile) :-
-    tileXYCoords(T, XYCoords),
-    (memberchk([X, Y], XYCoords) ->
+find_tile([T|Ts], X, Y, Tile) :-
+    tile_xy_coords(T, XY_coords),
+    (memberchk([X, Y], XY_coords) ->
          Tile = T, !;
-     findTile(Ts, X, Y, Tile)).
+     find_tile(Ts, X, Y, Tile)).
 
 
 % Greedy heuristic which selects the move that yields the
 % greatest immediate score
 greedy(Moves, Position, Move) :-
-    %write('Moves = '),write(Moves),nl,
-    maplist(\M^move_score(Position, M), Moves, MoveScores),
-    %write('MoveScores = '),write(MoveScores),
-    foldl(\P^A^move_with_max_score(P, A), MoveScores, [], [Move, _, _]).
+    maplist(\M^move_score(Position, M), Moves, Move_scores),
+    foldl(\P^A^move_with_max_score(P, A), Move_scores, [], [Move, _, _]).
 
 move_score(game(_, _, _, board(Tiles)), tileMove(Move, Adjacents), [Move, Score, Adjacents]) :-
     score([Move | Tiles], Score).
@@ -200,14 +146,14 @@ move_with_max_score([M1, S1, A1], [M2, S2, A2], [M, S, A]) :-
 % If there are more than one possible move at the highest level, use the
 % greedy heuristic for the candidate moves at the highest level.
 highest_level(Moves, Position, Move) :-
-    maplist(\M^move_score(Position, M), Moves, MoveScores),
-    foldl(\P^A^move_with_max_level(P, A), MoveScores, [], [Move, _, _]).
+    maplist(\M^move_score(Position, M), Moves, Move_scores),
+    foldl(\P^A^move_with_max_level(P, A), Move_scores, [], [Move, _, _]).
 
 move_with_max_level([M, S, A], [], [M, S, A]) :- !.
 move_with_max_level([], [M, S, A], [M, S, A]) :- !.
 move_with_max_level([M1, S1, A1], [M2, S2, A2], [M, S, A]) :-
-    getTileZ(M1, Z1),
-    getTileZ(M2, Z2),
+    tile_z(M1, Z1),
+    tile_z(M2, Z2),
     (Z1 > Z2 ->
          M = M1, S = S1, A = A1 ;
      (Z2 > Z1 ->
@@ -219,10 +165,9 @@ make_tile(Id, Points, tile(Id, 0, Points)).
 make_tile(Id, Level, Points, tile(Id, Level, Points)).
 
 
-tileXYCoords(tile(_, _, TilePoints), TilePoints).
-tileXYZCoords(tile(_, Z, TilePoints), Coords) :- maplist(\P^xyzCoords(P, Z), TilePoints, Coords).
-
-xyzCoords([X, Y], Z, [X, Y, Z]).
+tile_xy_coords(tile(_, _, Points), Points).
+tile_xyz_coords(tile(_, Z, Points), Coords) :- maplist(\P^xyz_coords(P, Z), Points, Coords).
+xyz_coords([X, Y], Z, [X, Y, Z]).
 
 % Tile templates
 zero([[0,0], [1,0], [2,0], [0,1], [2,1], [0,2], [2, 2], [0,3], [1,3], [2,3]]).
@@ -251,205 +196,235 @@ card(_, _, _) :- !, fail.
 getX([X, _], X).
 getY([_, Y], Y).
 
-getXs(tile(_, _, TilePoints), Xs) :- maplist(getX, TilePoints, Xs).
-getYs(tile(_, _, TilePoints), Ys) :- maplist(getY, TilePoints, Ys).
+getXs(tile(_, _, Points), Xs) :- maplist(getX, Points, Xs).
+getYs(tile(_, _, Points), Ys) :- maplist(getY, Points, Ys).
 
-getTileId(tile(Id, _, _), Id).
-getTileZ(tile(_, Z, _), Z).
+tile_id(tile(Id, _, _), Id).
+tile_z(tile(_, Z, _), Z).
 
 % Find minimum X value across a list of tuples
-minX([], 0).
-minX(Tiles, Min) :-
+x_min([], 0).
+x_min(Tiles, Min) :-
     maplist(\T^getXs(T), Tiles, Xs),
     flatten(Xs, Xss),
     min_list(Xss, Min).
 
 % Find maximum X value across a list of tuples
-maxX([], 0).
-maxX(Tiles, Max) :-
+x_max([], 0).
+x_max(Tiles, Max) :-
     maplist(\T^getXs(T), Tiles, Xs),
     flatten(Xs, Xss),
     max_list(Xss, Max).
 
 % Find minimum Y value across a list of tuples
-minY([], 0).
-minY(Tiles, Min) :-
+y_min([], 0).
+y_min(Tiles, Min) :-
     maplist(\T^getYs(T), Tiles, Ys),
     flatten(Ys, Yss),
     min_list(Yss, Min).
 
 % Find maximum Y value across a list of tuples
-maxY([], 0).
-maxY(Tiles, Max) :-
+y_max([], 0).
+y_max(Tiles, Max) :-
     maplist(\T^getYs(T), Tiles, Ys),
     flatten(Ys, Yss),
     max_list(Yss, Max).
 
 % Find minimum Z value across a list of tuples
-minZ([], 0).
-minZ(Tiles, Min) :-
-    maplist(\T^getTileZ(T), Tiles, Zs),
+z_min([], 0).
+z_min(Tiles, Min) :-
+    maplist(\T^tile_z(T), Tiles, Zs),
     min_list(Zs, Min).
 
 % Find maximum Z value across a list of tuples
-maxZ([], 0).
-maxZ(Tiles, Max) :-
-    maplist(\T^getTileZ(T), Tiles, Zs),
+z_max([], 0).
+z_max(Tiles, Max) :-
+    maplist(\T^tile_z(T), Tiles, Zs),
     max_list(Zs, Max).
 
 % Actually perform the move which updates the game state
-move(Move, game(Deck, Card, RevealedCards, board(Tiles)), game(Deck, Card, RevealedCards, board([Move | Tiles]))).
+move(Move, game(Deck, Card, Revealed_Cards, board(Tiles)), game(Deck, Card, Revealed_Cards, board([Move | Tiles]))).
 
 % Generate moves given a game state
-move(game(_, card(CardId, CardValue), _, board([])), tileMove(Tile, 0)) :-
-    card(CardId, CardValue, Points),
-    make_tile(CardId, Points, Tile), !.
+move(game(_, card(Card_id, Card_value), _, board([])), tileMove(Tile, 0)) :-
+    card(Card_id, Card_value, Points),
+    make_tile(Card_id, Points, Tile), !.
 
-move(game(_, card(CardId, CardValue), _, board(Tiles)), Move) :-
-    card(CardId, CardValue, Points),
-    make_tile(CardId, Points, Tile),
+move(game(_, card(Card_id, Card_value), _, board(Tiles)), Move) :-
+    card(Card_id, Card_value, Points),
+    make_tile(Card_id, Points, Tile),
     nextMoveBounds(Tiles, Bounds),
-    (NextMoveXmin, NextMoveXmax, NextMoveYmin, NextMoveYmax, NextMoveZmin, NextMoveZmax) = Bounds,
-    X in NextMoveXmin..NextMoveXmax,
-    Y in NextMoveYmin..NextMoveYmax,
-    Z in NextMoveZmin..NextMoveZmax,
+    (X_min, X_max, Y_min, Y_max, Z_min, Z_max) = Bounds,
+    X in X_min..X_max,
+    Y in Y_min..Y_max,
+    Z in Z_min..Z_max,
     R in 0..3,
     indomain(X), indomain(Y), indomain(Z), indomain(R),
-    rotate(R, Tile, RotatedTile),
-    translate(RotatedTile, X, Y, Z, Bounds, TranslatedTile),
-    isNonintersecting(Tiles, TranslatedTile),
-    adjacent(TranslatedTile, Tiles, Move),
+    rotate(R, Tile, Rotated_tile),
+    translate(Rotated_tile, X, Y, Z, Bounds, Translated_tile),
+    disjoint(Tiles, Translated_tile),
+    adjacent(Translated_tile, Tiles, Move),
     label([X, Y, Z, R]).
 
 nextMoveBounds(Tiles, Bounds) :-
-    minX(Tiles, Xmin),
-    maxX(Tiles, Xmax),
-    minY(Tiles, Ymin),
-    maxY(Tiles, Ymax),
-    minZ(Tiles, Zmin),
-    maxZ(Tiles, Zmax),
-    NextMoveXmin is Xmin - 4,
-    NextMoveXmax is Xmax + 4,
-    NextMoveYmin is Ymin - 4,
-    NextMoveYmax is Ymax + 4,
-    NextMoveZmin is Zmin,
-    NextMoveZmax is Zmax + 1,
-    Bounds = (NextMoveXmin, NextMoveXmax, NextMoveYmin, NextMoveYmax, NextMoveZmin, NextMoveZmax).
+    x_min(Tiles, X_min),
+    x_max(Tiles, X_max),
+    y_min(Tiles, Y_min),
+    y_max(Tiles, Y_max),
+    z_min(Tiles, Z_min),
+    z_max(Tiles, Z_max),
+    Next_x_min is X_min - 4,
+    Next_x_max is X_max + 4,
+    Next_y_min is Y_min - 4,
+    Next_y_max is Y_max + 4,
+    Next_z_min is Z_min,
+    Next_z_max is Z_max + 1,
+    Bounds = (Next_x_min, Next_x_max, Next_y_min, Next_y_max, Next_z_min, Next_z_max).
 
 
 % Rotates tile T counter-clockwise N times.
 rotate(0, Tile, Tile) :- !.
-rotate(N, tile(Id, Z, TilePoints), RotatedTile) :-
+rotate(N, tile(Id, Z, Tile_points), Rotated_tile) :-
     N > 0,
     N1 is N - 1,
-    tileXYCoords(TilePoints, Coords),
-    maplist(rotateCoord, Coords, Q),
+    maplist(rotate_coord, Tile_points, Q),
     make_tile(Id, Z, Q, M),
-    rotate(N1, M, RotatedTile).
+    rotate(N1, M, Rotated_tile).
 
 
-rotateCoord([A,B], [C,D]) :-
+rotate_coord([A,B], [C,D]) :-
     C is -1 * B,
     D is A.
 
-translate(tile(Id, Level, TilePoints), X, Y, Z, Bounds, tile(Id, NewZ, NewTilePoints)) :-
-    NewZ is Level + Z,
-    (_, _, _, _, Zmin, Zmax) = Bounds,
-    NewZ >= Zmin,
-    NewZ =< Zmax,
-    maplist(\P^translatePoint(P, X, Y, Bounds), TilePoints, NewTilePoints).
+translate(tile(Id, Level, Points), X, Y, Z, Bounds, tile(Id, Z1, Translated_points)) :-
+    Z1 is Level + Z,
+    (_, _, _, _, Z_min, Z_max) = Bounds,
+    Z1 >= Z_min,
+    Z1 =< Z_max,
+    maplist(\P^translate_point(P, X, Y, Bounds), Points, Translated_points).
 
-translatePoint([Px, Py], X, Y, Bounds, [Px2, Py2]) :-
-    (Xmin, Xmax, Ymin, Ymax, _, _) = Bounds,
+translate_point([Px, Py], X, Y, Bounds, [Px2, Py2]) :-
+    (X_min, X_max, Y_min, Y_max, _, _) = Bounds,
     Px2 is Px + X,
     Py2 is Py + Y,
-    Px2 >= Xmin,
-    Px2 =< Xmax,
-    Py2 >= Ymin,
-    Py2 =< Ymax.
+    Px2 >= X_min,
+    Px2 =< X_max,
+    Py2 >= Y_min,
+    Py2 =< Y_max.
 
-isNonintersecting(Tiles, Tile) :-
-    getTileZ(Tile, Z),
-    levelTiles(Tiles, Z, LevelTiles),
-    boardTileXYCoords(LevelTiles, LevelXYCoords),
-    tileXYCoords(Tile, TileXYCoords),
-    intersection(TileXYCoords, LevelXYCoords, CommonCoords),
+disjoint(Tiles, Tile) :-
+    tile_z(Tile, Z),
+    level_tiles(Tiles, Z, Level_tiles),
+    board_tile_xy_coords(Level_tiles, LevelXY_coords),
+    tile_xy_coords(Tile, TileXY_coords),
+    intersection(TileXY_coords, LevelXY_coords, CommonCoords),
     length(CommonCoords, 0).
 
 unionTileCoords(Acc, Tile, Res) :-
-    tileXYZCoords(Tile, Coords),
+    tile_xyz_coords(Tile, Coords),
     union(Acc, Coords, Res).
 
-unionTileXYCoords(Acc, Tile, Res) :-
-    tileXYCoords(Tile, Coords),
+union_tile_xy_coords(Acc, Tile, Res) :-
+    tile_xy_coords(Tile, Coords),
     union(Acc, Coords, Res).
 
 adjacent(Tile, Tiles, Move) :-
-    getTileZ(Tile, Z),
-    levelTiles(Tiles, Z, LevelTiles),
-    adjacentOnSameLevel(Tile, LevelTiles, Move),
+    tile_z(Tile, Z),
+    level_tiles(Tiles, Z, Level_tiles),
+    adjacent_on_same_level(Tile, Level_tiles, Move),
     PrecedingLevel is Z - 1,
-    levelTiles(Tiles, PrecedingLevel, PrecedingLevelTiles),
-    overlapsPrecedingLevel(Tile, PrecedingLevelTiles).
+    level_tiles(Tiles, PrecedingLevel, PrecedingLevel_tiles),
+    overlaps_preceding_level(Tile, PrecedingLevel_tiles).
 
-adjacentOnSameLevel(Tile, [], tileMove(Tile, 0)) :- !.
-adjacentOnSameLevel(Tile, LevelTiles, tileMove(Tile, L)) :-
-    boardTileXYCoords(LevelTiles, LevelTileXYCoords),
-    tileXYCoords(Tile, TileXYCoords),
-    adjacentCoords(TileXYCoords, PossibleAdjacentXYCoords),
-    intersection(PossibleAdjacentXYCoords, LevelTileXYCoords, AdjacentXYCoords),
-    length(AdjacentXYCoords, L),
+adjacent_on_same_level(Tile, [], tileMove(Tile, 0)) :- !.
+adjacent_on_same_level(Tile, Level_tiles, tileMove(Tile, L)) :-
+    board_tile_xy_coords(Level_tiles, Level_xy_coords),
+    tile_xy_coords(Tile, Tile_xy_coords),
+    adjacent_coords(Tile_xy_coords, Possible_adjacent_xy_coords),
+    intersection(Possible_adjacent_xy_coords, Level_xy_coords, Adjacent_xy_coords),
+    length(Adjacent_xy_coords, L),
     L > 0.
 
-adjacentCoords(Coords, AdjacentCoords) :-
-    foldl(\C^A^unionAdjacentCoords(A, C), Coords, [], AdjacentCoords).
+adjacent_coords(Coords, Adjacent_coords) :-
+    foldl(\C^A^union_adjacent_coords(A, C), Coords, [], Adjacent_coords).
 
-unionAdjacentCoords(Acc, [X, Y], Res) :-
-    adjacentPoints([X, Y], Points),
+union_adjacent_coords(Acc, [X, Y], Res) :-
+    adjacent_points([X, Y], Points),
     union(Acc, Points, Res).
 
-adjacentPoints([X, Y], [[X1, Y], [X2, Y], [X, Y1], [X, Y2]]) :-
+adjacent_points([X, Y], [[X1, Y], [X2, Y], [X, Y1], [X, Y2]]) :-
     X1 is X+1,
     X2 is X-1,
     Y1 is Y+1,
     Y2 is Y-1.
 
-overlapsPrecedingLevel(_, []) :- !.  % A tile placed on the bottom layer does not need to overlap any other tiles.
-overlapsPrecedingLevel(Tile, LevelTiles) :-
-    tileXYCoords(Tile, TileXYCoords),
-    boardTileXYCoords(LevelTiles, LevelXYCoords),
-    subset(TileXYCoords, LevelXYCoords),
-    overlapsMultipleTiles(Tile, LevelTiles).
+overlaps_preceding_level(_, []) :- !.  % A tile placed on the bottom layer does not need to overlap any other tiles.
+overlaps_preceding_level(Tile, Level_tiles) :-
+    tile_xy_coords(Tile, Tile_xy_coords),
+    board_tile_xy_coords(Level_tiles, Level_xy_coords),
+    subset(Tile_xy_coords, Level_xy_coords),
+    overlaps_multiple_tiles(Tile, Level_tiles).
 
 % helper rules
-boardTileXYCoords(Tiles, AllXYCoords) :-
-    foldl(\T^A^unionTileXYCoords(A, T), Tiles, [], AllXYCoords).
+board_tile_xy_coords(Tiles, XY_coords) :-
+    foldl(\T^A^union_tile_xy_coords(A, T), Tiles, [], XY_coords).
 
-levelTiles(Tiles, Z, LevelTiles) :-
-    include(\T^(getTileZ(T, Z)), Tiles, LevelTiles).
+level_tiles(Tiles, Z, Level_tiles) :-
+    include(\T^(tile_z(T, Z)), Tiles, Level_tiles).
 
-overlapsMultipleTiles(Tile, Tiles) :-
-    overlappedTiles(Tile, Tiles, OverlappedTiles),
-    maplist(\T^getTileId(T), OverlappedTiles, Ids),
-    sort(Ids, TileIds),  % Removes duplicates
-    length(TileIds, L),
+overlaps_multiple_tiles(Tile, Tiles) :-
+    overlapped_tiles(Tile, Tiles, Overlapped_tiles),
+    maplist(\T^tile_id(T), Overlapped_tiles, Ids),
+    sort(Ids, Distinct_Ids),  % Removes duplicates
+    length(Distinct_Ids, L),
     L > 1.
 
-overlappedTiles(Tile, Tiles, CoveredTiles) :-
-    include(\T^(overlaps(Tile, T)), Tiles, CoveredTiles).
+overlapped_tiles(Tile, Tiles, Covered_tiles) :-
+    include(\T^(overlaps(Tile, T)), Tiles, Covered_tiles).
 
-overlaps(TopTile, BottomTile) :-
-    tileXYCoords(TopTile, TopTileXYCoords),
-    tileXYCoords(BottomTile, BottomTileXYCoords),
-    intersection(TopTileXYCoords, BottomTileXYCoords, CommonCoords),
-    length(CommonCoords, L),
+overlaps(Top_tile, Bottom_tile) :-
+    tile_xy_coords(Top_tile, Top_tile_xy_coords),
+    tile_xy_coords(Bottom_tile, Bottom_tile_xy_coords),
+    intersection(Top_tile_xy_coords, Bottom_tile_xy_coords, Common_coords),
+    length(Common_coords, L),
     L > 0.
 
 score(Tiles, Score) :-
-    foldl(\T^A^sumTileScore(T, A), Tiles, 0, Score).
+    foldl(\T^A^sum_tile_score(T, A), Tiles, 0, Score).
 
-sumTileScore(Tile, Acc, TileScore) :-
-    getTileId(Tile, TileId),
-    TileValue is TileId mod 10,
-    getTileZ(Tile, Z),
-    TileScore is Acc + (TileValue * Z).
+sum_tile_score(Tile, Acc, Score) :-
+    tile_id(Tile, TileId),
+    Value is TileId mod 10,
+    tile_z(Tile, Z),
+    Score is Acc + (Value * Z).
+
+
+% Utilities for automated playing
+play_n_times(N) :-
+    play_n_times(0, N).
+
+play_n_times(N, N) :- !.
+play_n_times(M, N) :-
+    M1 is M + 1,
+    write('Game '),writeln(M1),
+    play_both(),
+    writeln('------------------'),
+    play_n_times(M1, N).
+
+play_both() :-
+    initialize(Position),
+    write('Game = '),writeln(Position),
+    play_quiet(greedy, Position, _),
+    play_quiet(highest_level, Position, _), !.
+
+play_quiet(Heuristic, Position, Result) :-
+    game_over(Position, Result), !, 
+    write('('),write(Heuristic),write(') '),
+    announce(Result).
+
+play_quiet(Heuristic, Position, Result) :-
+    draw_card(Position, Position1),
+    choose_move(Heuristic, Position1, Move),
+    move(Move, Position1, Position2),
+    !, play_quiet(Heuristic, Position2, Result).
+
